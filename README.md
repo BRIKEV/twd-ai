@@ -81,10 +81,8 @@ The `twd` agent reads this file at the start of every run to use project-specifi
 The plugin is cached locally when installed. To get the latest version after an update:
 
 ```bash
-# Remove and reinstall
+# Remove and reinstall (the marketplace stays, only the plugin needs reinstalling)
 claude plugin remove twd@twd-ai
-claude plugin marketplace remove twd-ai
-claude plugin marketplace add BRIKEV/twd-ai
 claude plugin install twd@twd-ai
 ```
 
