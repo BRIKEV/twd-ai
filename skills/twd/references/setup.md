@@ -37,6 +37,13 @@ if (import.meta.env.DEV) {
     serviceWorker: true,
     serviceWorkerUrl: '/mock-sw.js',
   });
+
+  // Connect twd-relay browser client
+  if (import.meta.env.VITE_ENABLE_TWD_RELAY === 'true') {
+    const { createBrowserClient } = await import('twd-relay/browser');
+    const client = createBrowserClient({ url: `${window.location.origin}/__twd/ws` });
+    client.connect();
+  }
 }
 ```
 
@@ -47,6 +54,7 @@ if (import.meta.env.DEV) {
 - `serviceWorkerUrl` (string) — service worker path. Default: `'/mock-sw.js'`
 
 > **Note**: If your project has a custom Vite `base` path (e.g., `/my-app/`), adjust the `serviceWorkerUrl` accordingly: `serviceWorkerUrl: '/my-app/mock-sw.js'`.
+> Also adjust the relay client URL: `` `${window.location.origin}/my-app/__twd/ws` ``.
 
 ### Framework-Specific Notes
 
@@ -60,6 +68,12 @@ if (import.meta.env.DEV) {
   const { initTWD } = await import('twd-js/bundled');
   const tests = import.meta.glob("./**/*.twd.test.ts");
   initTWD(tests, { open: true, position: 'left' });
+
+  if (import.meta.env.VITE_ENABLE_TWD_RELAY === 'true') {
+    const { createBrowserClient } = await import('twd-relay/browser');
+    const client = createBrowserClient({ url: `${window.location.origin}/__twd/ws` });
+    client.connect();
+  }
 }
 
 createApp(App).mount('#app');
@@ -77,6 +91,13 @@ if (isDevMode()) {
     './twd-tests/feature.twd.test.ts': () => import('./twd-tests/feature.twd.test'),
   };
   initTWD(tests, { open: true, position: 'left' });
+
+  // @ts-ignore — VITE_ENABLE_TWD_RELAY may not exist in Angular env types
+  if (import.meta.env?.VITE_ENABLE_TWD_RELAY === 'true') {
+    const { createBrowserClient } = await import('twd-relay/browser');
+    const client = createBrowserClient({ url: `${window.location.origin}/__twd/ws` });
+    client.connect();
+  }
 }
 ```
 
@@ -87,6 +108,12 @@ if (import.meta.env.DEV) {
   const { initTWD } = await import('twd-js/bundled');
   const tests = import.meta.glob("./**/*.twd.test.ts");
   initTWD(tests, { open: true, position: 'left' });
+
+  if (import.meta.env.VITE_ENABLE_TWD_RELAY === 'true') {
+    const { createBrowserClient } = await import('twd-relay/browser');
+    const client = createBrowserClient({ url: `${window.location.origin}/__twd/ws` });
+    client.connect();
+  }
 }
 ```
 
@@ -107,16 +134,7 @@ export default defineConfig({
 });
 ```
 
-## Step 5: Connect Browser Client (for twd-relay)
-
-```typescript
-// Add inside your import.meta.env.DEV block, after initTWD:
-import { createBrowserClient } from 'twd-relay/browser';
-const client = createBrowserClient();
-client.connect();
-```
-
-## Step 6: Write a First Test
+## Step 5: Write a First Test
 
 Create a `src/twd-tests/` folder for all TWD tests. For larger projects, organize by domain (e.g., `src/twd-tests/auth/`, `src/twd-tests/dashboard/`).
 

@@ -24,8 +24,9 @@ These rules override everything else. If any rule conflicts with instructions be
 2. **`it.only()` is MANDATORY before any fix attempt.** The relay runs ALL tests — `it.only()` is the ONLY isolation mechanism. Never re-run the full suite to verify a single fix.
 3. **Remove ALL `it.only()` before the final full-suite run.** Leaving `it.only()` silently skips other tests.
 4. **Mock BEFORE visit.** Always set up `twd.mockRequest()` before `twd.visit()`.
-5. **Always `await` async methods.** `twd.visit()`, `twd.get()`, `userEvent.*`, `screenDom.findBy*`, `twd.waitForRequest()`.
-6. **Imports from TWD only.** `describe`/`it`/`beforeEach` from `twd-js/runner`, `expect` from `twd-js` — never from Jest, Mocha, or Vitest.
+5. **Always `await` async methods.** `twd.visit()`, `twd.get()`, `userEvent.*`, `screenDom.findBy*`, `twd.waitForRequest()`, `twd.mockRequest()`.
+6. **Imports from TWD only.** `describe`/`it`/`beforeEach` from `twd-js/runner`, `expect` from `twd-js` — never from Jest, Mocha, or Vitest. `expect` is **Chai-style**: use `.to.equal()`, `.to.have.length()`, `.to.deep.equal()`, `.to.be.true` — **NEVER** Jest-style `.toBe()`, `.toHaveLength()`, `.toEqual()`, `.toBeTruthy()`.
+7. **`mockRequest` uses alias + config object.** Signature: `await twd.mockRequest("alias", { method, url, response, status })`. NEVER use positional arguments. The config key is `response` (NOT `body`). NEVER `JSON.stringify` the response — pass plain objects/arrays. ALWAYS `await` the call.
 
 ---
 
@@ -96,10 +97,15 @@ Before writing tests:
 
 Read the reference file `references/running-tests.md` for running and debugging tests.
 
-**STOP — Before the first run, confirm:**
-- Every test file has ONE top-level `describe()`
-- No `it.only()` is present in any file
-- All mocks are set up BEFORE `twd.visit()`
+**STOP — Pre-flight checks before the first run:**
+
+1. **Is the dev server running?** Ask the user to confirm their dev server is running (`npm run dev` or equivalent) in a separate terminal. Without a running dev server, the relay has nothing to connect to.
+2. **Is the app open in a browser tab?** Ask the user to confirm the app is open at `http://localhost:PORT`. TWD tests execute inside the browser — if no tab is open, the relay cannot dispatch tests.
+3. Every test file has ONE top-level `describe()`
+4. No `it.only()` is present in any file
+5. All mocks are set up BEFORE `twd.visit()`
+
+> **Do NOT proceed until the user confirms items 1 and 2.** The relay will fail silently or time out otherwise.
 
 Run the full suite using the relay command from `.claude/twd-patterns.md`, or defaults:
 

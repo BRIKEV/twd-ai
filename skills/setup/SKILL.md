@@ -46,8 +46,10 @@ Use the detected values as defaults. Ask the user to confirm or correct:
    - **If a CSS library was detected**: Where are the docs? (URL, local path, or "skip")
 8. **Auth middleware**: Does your project have route-based auth/permissions? (yes/no)
    - **If yes**: Briefly describe the pattern (e.g., "useAuth hook checks permissions per route")
-9. **Feature flags**: Does your project use feature flags? (yes/no)
-   - **If yes**: Which library/service? (e.g., ConfigCat, LaunchDarkly, custom)
+9. **Third-party modules**: Does your project use external services that need to be mocked/stubbed in tests? (yes/no)
+   - **If yes**: Which modules? (e.g., Auth0, Stripe, ConfigCat, analytics SDKs, feature flag services)
+   - For each module: How is it imported? (e.g., `import { useAuth0 } from '@auth0/auth0-react'`)
+   - The agent needs this to know what to Sinon-stub in tests — "test what you own, mock what you don't"
 
 Skip questions where auto-detection is confident (e.g., framework is obvious from package.json).
 
@@ -99,8 +101,9 @@ await twd.visit("BASE_PATHsome-page");
 beforeEach(() => {
   twd.clearRequestMockRules();
   twd.clearComponentMocks();
+  Sinon.restore();
   // AUTH_SETUP (if applicable)
-  // FEATURE_FLAG_SETUP (if applicable)
+  // THIRD_PARTY_STUBS (if applicable — e.g., Sinon.stub(authModule, 'useAuth').returns(...))
 });
 
 afterEach(() => {
@@ -131,11 +134,16 @@ AUTH_DESCRIPTION
 |-------|---------------------|
 | (to be filled by developer) | |
 
-## Feature Flags
+## Third-Party Modules
 
-- **Service**: FLAG_SERVICE
+"Test what you own, mock what you don't." These external modules should be stubbed in tests:
 
-Tests should mock feature flags before visiting pages. Default to "everything enabled" unless testing a specific flag scenario.
+| Module | Import Pattern | Stub Strategy |
+|--------|---------------|---------------|
+| MODULE_NAME | `import { hook } from 'package'` | `Sinon.stub(moduleObj, 'hook').returns(...)` |
+| (to be filled by developer) | | |
+
+See the test-writing reference for the default-export object pattern required for ESM stubbing.
 
 ## Portals and Dialogs
 
@@ -151,7 +159,7 @@ const modal = screenDomGlobal.getByRole("dialog");
 - If base path is `/`, simplify visit paths to just `await twd.visit("/page")`
 - If port is `5173` and base path is `/`, use `npx twd-relay run` (no flags)
 - Omit the "Auth Middleware" section entirely if no auth
-- Omit the "Feature Flags" section entirely if no flags
+- Omit the "Third-Party Modules" section entirely if no external modules
 - Omit the "CSS / Component Library" section if none detected
 - Omit the "API Service Types" section if no services folder found
 
@@ -162,10 +170,9 @@ After generating the config file, check if TWD is already installed. If not, ask
 1. `npm install twd-js`
 2. `npm install --save-dev twd-relay`
 3. `npx twd-js init PUBLIC_DIR --save`
-4. Configure entry point (show the code to add, based on framework)
-5. Add Vite plugins (`twdHmr()` and `twdRemote()`)
-6. Add browser client connection
-7. Write a first test file
+4. Configure entry point with relay client (show the complete DEV block from `references/setup.md` Step 3, including the `initTWD` call and the `VITE_ENABLE_TWD_RELAY` guarded `createBrowserClient` block — all inside one `import.meta.env.DEV` guard)
+5. Add Vite plugins: `twdHmr()` from `twd-js/vite-plugin` and `twdRemote() as PluginOption` from `twd-relay/vite` (with `import type { PluginOption } from 'vite'`)
+6. Write a first test file
 
 Only run steps the user approves. Show what each step does before executing.
 

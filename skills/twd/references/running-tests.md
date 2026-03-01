@@ -31,13 +31,19 @@ npx twd-cli run
 
 This launches a headless browser, runs all tests, and reports results. Configure via `twd.config.json` in the project root.
 
-## Prerequisites
+## MANDATORY Pre-Flight Check — DO NOT SKIP
 
-Before running tests, ensure:
-1. The dev server is running (`npm run dev`)
-2. `twd-relay` is installed (`npm install --save-dev twd-relay`)
-3. `twdRemote()` plugin is in `vite.config.ts`
-4. Browser client is connected (see setup reference)
+**Tests WILL fail silently or hang if these conditions are not met.**
+
+Before running `npx twd-relay run`, **ALL** of the following must be true:
+
+1. **The dev server MUST be running** — run `npm run dev` (or your project's dev command) in a separate terminal. The relay connects to the Vite dev server via WebSocket — without it, the relay has nothing to connect to.
+2. **The app MUST be open in a browser tab** — navigate to `http://localhost:PORT` (e.g., `http://localhost:5173`). TWD tests execute inside the browser — if no tab is open, the relay cannot dispatch tests.
+3. **`twd-relay` is installed** — `npm install --save-dev twd-relay`
+4. **`twdRemote()` plugin is in `vite.config.ts`** — see setup reference
+5. **Browser relay client is connected** — the entry point must include the `createBrowserClient` block (see setup reference Step 3)
+
+> **If the relay exits immediately or times out**, the #1 cause is that the dev server is not running or the browser tab is not open. Always check these first.
 
 ## Reading Failures
 

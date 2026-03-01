@@ -44,6 +44,57 @@ await twd.visit("/page");
 await twd.waitForRequest("labelName");
 ```
 
+> **CRITICAL**: `mockRequest` always needs `await`. The second argument uses `response` (NOT `body`). Never `JSON.stringify` the response — pass a plain object. The signature is always: `await twd.mockRequest("alias", { method, url, response, status })`.
+
+#### WRONG vs RIGHT — `mockRequest`
+
+```typescript
+// WRONG — positional arguments (this API does NOT exist)
+twd.mockRequest("GET", "/api/users", { data: [] }, 200);
+
+// WRONG — using "body" instead of "response"
+await twd.mockRequest("getUsers", {
+  method: "GET",
+  url: "/api/users",
+  body: JSON.stringify({ data: [] }),  // WRONG: "body" + JSON.stringify
+  status: 200,
+});
+
+// WRONG — missing await
+twd.mockRequest("getUsers", {
+  method: "GET",
+  url: "/api/users",
+  response: { data: [] },
+  status: 200,
+});
+
+// RIGHT — alias + config object, await, response (plain object)
+await twd.mockRequest("getUsers", {
+  method: "GET",
+  url: "/api/users",
+  response: { data: [] },
+  status: 200,
+});
+```
+
+### Assertions — Chai Style (NEVER Jest)
+
+TWD uses **Chai** assertions via `expect` from `twd-js`. Never use Jest-style matchers.
+
+```typescript
+// RIGHT — Chai style
+expect(array).to.have.length(3);
+expect(value).to.equal("expected");
+expect(obj).to.deep.equal({ key: "value" });
+expect(flag).to.be.true;
+
+// WRONG — Jest style (these will throw errors)
+expect(array).toHaveLength(3);      // WRONG
+expect(value).toBe("expected");     // WRONG
+expect(obj).toEqual({ key: "v" });  // WRONG
+expect(flag).toBeTruthy();          // WRONG
+```
+
 ### Standard `beforeEach`
 
 ```typescript
@@ -148,6 +199,7 @@ await twd.getAll(".item");
 await userEvent.click(button);
 await userEvent.type(input, "text");
 await screenDom.findByRole("button");
+await twd.mockRequest("alias", { method, url, response, status });
 await twd.waitForRequest("label");
 await twd.notExists(".spinner");
 ```
@@ -351,9 +403,104 @@ Sinon.stub(authModule, "useAuth").returns({
 // Always Sinon.restore() in beforeEach
 ```
 
+### Extended CRUD Template
+
+A complete flow-based test covering list → create → edit → delete:
+
+```typescript
+import { twd, userEvent, screenDom, expect } from "twd-js";
+import { describe, it, beforeEach } from "twd-js/runner";
+
+const mockItems = [
+  { id: 1, name: "Item One", email: "one@test.com" },
+  { id: 2, name: "Item Two", email: "two@test.com" },
+];
+
+describe("Items Page", () => {
+  beforeEach(() => {
+    twd.clearRequestMockRules();
+    twd.clearComponentMocks();
+  });
+
+  describe("listing", () => {
+    it("should display all items in the table", async () => {
+      await twd.mockRequest("getItems", {
+        method: "GET",
+        url: "/api/items",
+        response: mockItems,
+        status: 200,
+      });
+
+      await twd.visit("/items");
+      await twd.waitForRequest("getItems");
+
+      const rows = screenDom.getAllByRole("row");
+      // +1 for header row
+      expect(rows).to.have.length(mockItems.length + 1);
+      twd.should(screenDom.getByText("Item One"), "be.visible");
+    });
+  });
+
+  describe("create flow", () => {
+    it("should open form, fill fields, and submit", async () => {
+      await twd.mockRequest("getItems", {
+        method: "GET",
+        url: "/api/items",
+        response: mockItems,
+        status: 200,
+      });
+      await twd.mockRequest("createItem", {
+        method: "POST",
+        url: "/api/items",
+        response: { id: 3, name: "New Item", email: "new@test.com" },
+        status: 201,
+      });
+
+      await twd.visit("/items");
+      await twd.waitForRequest("getItems");
+
+      // Open the create form
+      const user = userEvent.setup();
+      await user.click(screenDom.getByRole("button", { name: /add/i }));
+
+      // Fill the form
+      await user.type(screenDom.getByLabelText(/name/i), "New Item");
+      await user.type(screenDom.getByLabelText(/email/i), "new@test.com");
+
+      // Submit
+      await user.click(screenDom.getByRole("button", { name: /save/i }));
+      await twd.waitForRequest("createItem");
+
+      // Verify the POST body
+      const rule = await twd.waitForRequest("createItem");
+      expect(rule.request).to.deep.equal({
+        name: "New Item",
+        email: "new@test.com",
+      });
+    });
+  });
+
+  describe("error states", () => {
+    it("should show error message on server failure", async () => {
+      await twd.mockRequest("getItems", {
+        method: "GET",
+        url: "/api/items",
+        response: { error: "Internal Server Error" },
+        status: 500,
+      });
+
+      await twd.visit("/items");
+      await twd.waitForRequest("getItems");
+
+      twd.should(screenDom.getByText(/error/i), "be.visible");
+    });
+  });
+});
+```
+
 ### Common Mistakes to AVOID
 
-1. **Forgetting `await`** on `twd.get()`, `userEvent.*`, `twd.visit()`, `screenDom.findBy*`
+1. **Forgetting `await`** on `twd.get()`, `userEvent.*`, `twd.visit()`, `screenDom.findBy*`, **`twd.mockRequest()`**
 2. **Mocking AFTER visit** — always mock before `twd.visit()`
 3. **Not clearing mocks** — always `twd.clearRequestMockRules()` and `twd.clearComponentMocks()` in `beforeEach`
 4. **Using Node.js APIs** — tests run in the browser, no `fs`, `path`, etc.
@@ -361,3 +508,7 @@ Sinon.stub(authModule, "useAuth").returns({
 6. **Stubbing named exports** — ESM makes them immutable. Use the default-export object pattern
 7. **Writing granular unit tests** — don't write one `it()` per element. Test full user flows
 8. **Multiple top-level `describe()` blocks** — always use ONE top-level `describe()` per file with nested groups
+9. **Jest-style assertions** — use `expect(x).to.equal(y)` NOT `.toBe(y)`, use `.to.have.length(n)` NOT `.toHaveLength(n)`. TWD uses Chai, not Jest
+10. **Using `body` instead of `response`** in `mockRequest` — the config key is `response`, not `body`
+11. **Using `JSON.stringify` in mock responses** — pass plain objects/arrays, never stringify them
+12. **Positional args in `mockRequest`** — always use the alias + config object pattern: `await twd.mockRequest("alias", { method, url, response, status })`
