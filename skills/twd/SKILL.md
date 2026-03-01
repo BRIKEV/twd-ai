@@ -26,7 +26,7 @@ These rules override everything else. If any rule conflicts with instructions be
 4. **Mock BEFORE visit.** Always set up `twd.mockRequest()` before `twd.visit()`.
 5. **Always `await` async methods.** `twd.visit()`, `twd.get()`, `userEvent.*`, `screenDom.findBy*`, `twd.waitForRequest()`, `twd.mockRequest()`.
 6. **Imports from TWD only.** `describe`/`it`/`beforeEach` from `twd-js/runner`, `expect` from `twd-js` — never from Jest, Mocha, or Vitest. `expect` is **Chai-style**: use `.to.equal()`, `.to.have.length()`, `.to.deep.equal()`, `.to.be.true` — **NEVER** Jest-style `.toBe()`, `.toHaveLength()`, `.toEqual()`, `.toBeTruthy()`.
-7. **`mockRequest` uses alias + config object.** Signature: `await twd.mockRequest("alias", { method, url, response, status })`. NEVER use positional arguments. The config key is `response` (NOT `body`). NEVER `JSON.stringify` the response — pass plain objects/arrays. ALWAYS `await` the call.
+7. **`mockRequest` uses alias + config object.** Signature: `await twd.mockRequest("alias", { method, url, response, status?, headers?, responseHeaders?, delay? })`. NEVER use positional arguments. The config key is `response` (NOT `body`). `response` accepts any value (objects, arrays, strings, `null`). ALWAYS `await` the call.
 
 ---
 

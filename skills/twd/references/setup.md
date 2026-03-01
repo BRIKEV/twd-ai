@@ -39,11 +39,9 @@ if (import.meta.env.DEV) {
   });
 
   // Connect twd-relay browser client
-  if (import.meta.env.VITE_ENABLE_TWD_RELAY === 'true') {
-    const { createBrowserClient } = await import('twd-relay/browser');
-    const client = createBrowserClient({ url: `${window.location.origin}/__twd/ws` });
-    client.connect();
-  }
+  const { createBrowserClient } = await import('twd-relay/browser');
+  const client = createBrowserClient({ url: `${window.location.origin}/__twd/ws` });
+  client.connect();
 }
 ```
 
@@ -69,11 +67,9 @@ if (import.meta.env.DEV) {
   const tests = import.meta.glob("./**/*.twd.test.ts");
   initTWD(tests, { open: true, position: 'left' });
 
-  if (import.meta.env.VITE_ENABLE_TWD_RELAY === 'true') {
-    const { createBrowserClient } = await import('twd-relay/browser');
-    const client = createBrowserClient({ url: `${window.location.origin}/__twd/ws` });
-    client.connect();
-  }
+  const { createBrowserClient } = await import('twd-relay/browser');
+  const client = createBrowserClient({ url: `${window.location.origin}/__twd/ws` });
+  client.connect();
 }
 
 createApp(App).mount('#app');
@@ -92,12 +88,9 @@ if (isDevMode()) {
   };
   initTWD(tests, { open: true, position: 'left' });
 
-  // @ts-ignore — VITE_ENABLE_TWD_RELAY may not exist in Angular env types
-  if (import.meta.env?.VITE_ENABLE_TWD_RELAY === 'true') {
-    const { createBrowserClient } = await import('twd-relay/browser');
-    const client = createBrowserClient({ url: `${window.location.origin}/__twd/ws` });
-    client.connect();
-  }
+  const { createBrowserClient } = await import('twd-relay/browser');
+  const client = createBrowserClient({ url: `${window.location.origin}/__twd/ws` });
+  client.connect();
 }
 ```
 
@@ -109,11 +102,9 @@ if (import.meta.env.DEV) {
   const tests = import.meta.glob("./**/*.twd.test.ts");
   initTWD(tests, { open: true, position: 'left' });
 
-  if (import.meta.env.VITE_ENABLE_TWD_RELAY === 'true') {
-    const { createBrowserClient } = await import('twd-relay/browser');
-    const client = createBrowserClient({ url: `${window.location.origin}/__twd/ws` });
-    client.connect();
-  }
+  const { createBrowserClient } = await import('twd-relay/browser');
+  const client = createBrowserClient({ url: `${window.location.origin}/__twd/ws` });
+  client.connect();
 }
 ```
 

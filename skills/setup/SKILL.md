@@ -170,7 +170,7 @@ After generating the config file, check if TWD is already installed. If not, ask
 1. `npm install twd-js`
 2. `npm install --save-dev twd-relay`
 3. `npx twd-js init PUBLIC_DIR --save`
-4. Configure entry point with relay client (show the complete DEV block from `references/setup.md` Step 3, including the `initTWD` call and the `VITE_ENABLE_TWD_RELAY` guarded `createBrowserClient` block — all inside one `import.meta.env.DEV` guard)
+4. Configure entry point with relay client (show the complete DEV block from `references/setup.md` Step 3, including the `initTWD` call and the `createBrowserClient` connection — all inside one `import.meta.env.DEV` guard)
 5. Add Vite plugins: `twdHmr()` from `twd-js/vite-plugin` and `twdRemote() as PluginOption` from `twd-relay/vite` (with `import type { PluginOption } from 'vite'`)
 6. Write a first test file
 

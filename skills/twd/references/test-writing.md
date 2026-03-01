@@ -44,7 +44,21 @@ await twd.visit("/page");
 await twd.waitForRequest("labelName");
 ```
 
-> **CRITICAL**: `mockRequest` always needs `await`. The second argument uses `response` (NOT `body`). Never `JSON.stringify` the response — pass a plain object. The signature is always: `await twd.mockRequest("alias", { method, url, response, status })`.
+> **Important**: `mockRequest` always needs `await`. The second argument uses `response` (NOT `body`). The signature is: `await twd.mockRequest("alias", { method, url, response, status?, headers?, responseHeaders?, delay? })`. The `response` field accepts any value — objects, arrays, strings, `null`, etc.
+
+#### Full `mockRequest` Options
+
+```typescript
+await twd.mockRequest("alias", {
+  method: string,              // HTTP method (GET, POST, PUT, DELETE, etc.)
+  url: string | RegExp,        // URL to match
+  response: unknown,           // Response body (any JSON-serializable value)
+  status?: number,             // HTTP status code (default: 200)
+  headers?: Record<string, string>,         // Response headers
+  responseHeaders?: Record<string, string>, // Alternative name for headers
+  delay?: number,              // Simulated network delay in ms
+});
+```
 
 #### WRONG vs RIGHT — `mockRequest`
 
@@ -56,7 +70,7 @@ twd.mockRequest("GET", "/api/users", { data: [] }, 200);
 await twd.mockRequest("getUsers", {
   method: "GET",
   url: "/api/users",
-  body: JSON.stringify({ data: [] }),  // WRONG: "body" + JSON.stringify
+  body: { data: [] },  // WRONG: the key is "response", not "body"
   status: 200,
 });
 
@@ -68,12 +82,22 @@ twd.mockRequest("getUsers", {
   status: 200,
 });
 
-// RIGHT — alias + config object, await, response (plain object)
+// RIGHT — alias + config object, await, response
 await twd.mockRequest("getUsers", {
   method: "GET",
   url: "/api/users",
   response: { data: [] },
   status: 200,
+});
+
+// RIGHT — with optional fields
+await twd.mockRequest("slowRequest", {
+  method: "GET",
+  url: "/api/data",
+  response: { items: [] },
+  status: 200,
+  delay: 1000,
+  responseHeaders: { "X-Request-Id": "abc-123" },
 });
 ```
 
@@ -510,5 +534,5 @@ describe("Items Page", () => {
 8. **Multiple top-level `describe()` blocks** — always use ONE top-level `describe()` per file with nested groups
 9. **Jest-style assertions** — use `expect(x).to.equal(y)` NOT `.toBe(y)`, use `.to.have.length(n)` NOT `.toHaveLength(n)`. TWD uses Chai, not Jest
 10. **Using `body` instead of `response`** in `mockRequest` — the config key is `response`, not `body`
-11. **Using `JSON.stringify` in mock responses** — pass plain objects/arrays, never stringify them
+11. **Wrapping `response` in `JSON.stringify` unnecessarily** — `response` accepts any value directly; only use `JSON.stringify` if the actual API returns a stringified JSON body
 12. **Positional args in `mockRequest`** — always use the alias + config object pattern: `await twd.mockRequest("alias", { method, url, response, status })`
