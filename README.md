@@ -4,8 +4,11 @@ In-browser testing plugin for Claude Code. Writes, runs, and fixes browser tests
 
 ## Installation
 
+Add the marketplace and install the plugin:
+
 ```bash
-claude plugin install BRIKEV/twd-ai
+claude plugin marketplace add BRIKEV/twd-ai
+claude plugin install twd@twd-ai
 ```
 
 ## What's Included

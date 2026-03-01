@@ -1,0 +1,17 @@
+{
+  "name": "twd-ai",
+  "owner": {
+    "name": "BRIKEV",
+    "email": "brikev@users.noreply.github.com"
+  },
+  "metadata": {
+    "description": "TWD (Test While Developing) — in-browser testing plugins for Claude Code"
+  },
+  "plugins": [
+    {
+      "name": "twd",
+      "source": ".",
+      "description": "TWD (Test While Developing) — in-browser testing plugin for Claude Code. Writes, runs, and fixes browser tests for SPAs."
+    }
+  ]
+}
