@@ -385,6 +385,8 @@ twd.clearRequestMockRules();
 
 ### Component Mocking
 
+> **Mock before visit**: Call `twd.mockComponent()` BEFORE `twd.visit()`, just like `mockRequest`. Use `.twd.test.tsx` extension when writing JSX in mock implementations.
+
 ```tsx
 // In your component — wrap with MockedComponent
 import { MockedComponent } from "twd-js/ui";
@@ -398,14 +400,20 @@ function Dashboard() {
 }
 ```
 
-```typescript
-// In your test
+```tsx
+// In your test — mock BEFORE twd.visit()
 twd.mockComponent("ExpensiveChart", () => (
   <div data-testid="mock-chart">Mocked Chart</div>
 ));
+await twd.visit("/dashboard");
+
+// Clear in beforeEach (already included in standard beforeEach)
+twd.clearComponentMocks();
 ```
 
 ### Module Stubbing with Sinon
+
+> **Sinon is a separate npm package** — install it with `npm install -D sinon`. Import as `import Sinon from "sinon"`. NEVER import from `twd-js/sinon` — that path does NOT exist.
 
 ESM named exports are IMMUTABLE. Wrap hooks/services in objects with default export:
 
@@ -417,7 +425,7 @@ export default { useAuth };
 
 ```typescript
 // In test:
-import Sinon from "sinon";
+import Sinon from "sinon"; // npm package "sinon", NOT "twd-js/sinon"
 import authModule from "../hooks/useAuth";
 
 Sinon.stub(authModule, "useAuth").returns({
@@ -426,6 +434,40 @@ Sinon.stub(authModule, "useAuth").returns({
 });
 // Always Sinon.restore() in beforeEach
 ```
+
+#### Stubbable Gate Pattern
+
+**Test what you own, not what you don't own.** Instead of mocking third-party provider internals (Auth0, MSAL, ConfigCat, etc.), create a stubbable boolean gate that skips the provider entirely in tests:
+
+```typescript
+// gates/enableAuth.ts — gate module
+const enableAuth = () => true;
+export default { enableAuth };
+```
+
+```typescript
+// main.tsx — conditionally mount provider
+import enableAuthModule from "./gates/enableAuth";
+
+if (enableAuthModule.enableAuth()) {
+  // mount <MsalProvider>, <Auth0Provider>, etc.
+  renderApp(<AuthProvider><App /></AuthProvider>);
+} else {
+  renderApp(<App />);
+}
+```
+
+```typescript
+// In test — skip the auth provider entirely
+import Sinon from "sinon";
+import enableAuthModule from "../gates/enableAuth";
+
+Sinon.stub(enableAuthModule, "enableAuth").returns(false);
+await twd.visit("/");
+// App renders without auth provider — no hook-count mismatches
+```
+
+This works for any third-party provider (feature flags, analytics, auth). It avoids hook-count mismatches and complex provider mocking — you test your app's behavior, not the library's internals.
 
 ### Extended CRUD Template
 
@@ -536,3 +578,5 @@ describe("Items Page", () => {
 10. **Using `body` instead of `response`** in `mockRequest` — the config key is `response`, not `body`
 11. **Wrapping `response` in `JSON.stringify` unnecessarily** — `response` accepts any value directly; only use `JSON.stringify` if the actual API returns a stringified JSON body
 12. **Positional args in `mockRequest`** — always use the alias + config object pattern: `await twd.mockRequest("alias", { method, url, response, status })`
+13. **Importing Sinon from `twd-js/sinon`** — Sinon is a standalone npm package. Import as `import Sinon from "sinon"`, NEVER from `twd-js/sinon` or any `twd-js/*` subpath
+14. **Mocking components AFTER visit** — call `twd.mockComponent()` BEFORE `twd.visit()`, same rule as `mockRequest`
