@@ -27,6 +27,20 @@ What it does:
 - Generates `.claude/twd-patterns.md` with project-specific patterns
 - Optionally installs TWD packages and configures your project
 
+### `/twd:ci-setup` Command
+
+Sets up CI/CD for TWD tests — installs `twd-cli`, optionally configures code coverage, and generates a GitHub Actions workflow.
+
+```
+/twd:ci-setup
+```
+
+What it does:
+- Detects your project setup (framework, Vite config, existing workflows)
+- Installs `twd-cli` for headless test running
+- Optionally sets up code coverage with `vite-plugin-istanbul` + `nyc` (requires Vite)
+- Generates `.github/workflows/twd-tests.yml`
+
 ### `twd` Skill
 
 Autonomous testing agent that writes, runs, and fixes in-browser tests. Invoked by the model when you ask for testing work.
@@ -59,6 +73,8 @@ Requires Vite as the build tool. Not compatible with SSR-first architectures (Ne
 | `twd-js` | Core testing library | dependency |
 | `twd-relay` | CLI test runner via WebSocket | devDependency |
 | `twd-cli` | Headless/CI test runner | devDependency (optional) |
+| `vite-plugin-istanbul` | Code coverage instrumentation | devDependency (optional) |
+| `nyc` | Coverage reporting (text, html, lcov) | devDependency (optional) |
 
 All packages are published by [BRIKEV](https://www.npmjs.com/~brikev) under MIT license. TWD code is guarded by `import.meta.env.DEV` — never included in production builds. `twd-relay` operates exclusively on localhost.
 
