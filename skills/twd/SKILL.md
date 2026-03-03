@@ -82,10 +82,40 @@ Before writing tests:
 5. If `.claude/twd-patterns.md` exists, follow its standard imports, beforeEach template, and visit path prefix
 
 **Testing philosophy — flow-based tests:**
+
+**Do:**
 - **One top-level `describe()` per file** — use nested `describe()` blocks to group sub-scenarios (e.g. "CRUD", "permissions", "error states"). Never create multiple top-level `describe()` blocks in the same file.
-- Each `it()` covers a complete user flow: setup mocks → visit → interact → assert outcome
-- Don't write one test per element — test the full journey through a page
-- Group flows by scenario: happy path, empty states, error handling, CRUD operations
+- Each `it()` covers a **complete user flow**: setup mocks → visit → interact → assert outcome. Multiple assertions per `it()` is expected — they tell a story.
+- **Aim for 3–6 tests per feature**, organized into these categories:
+  1. Happy path A — main flow end-to-end (load page → see data → interact → confirm result)
+  2. Happy path B — reverse or alternate flow (e.g. edit existing item, different user role)
+  3. Cancel / negative flow — user aborts, clicks cancel, submits invalid data
+  4. Access gates — feature flag + permission checks combined in a single test
+  5. Edge cases — backward compatibility, empty states, error responses (combine into one or two tests)
+- Combine related checks into a single `it()` — if you're on the same page with the same mocks, assert everything there.
+
+**Don't:**
+- Don't write one `it()` per UI element — "should display title", "should display subtitle", "should display button" is three tests that should be one.
+- Don't create separate tests for trivially combinable checks — if both assertions need the same setup, they belong together.
+- Don't test implementation details — test what the user sees and does, not internal state.
+
+```typescript
+// GOOD — flow-based it() names
+it("should load the payment list and display all columns", async () => { /* ... */ });
+it("should open the create form, fill fields, and submit successfully", async () => { /* ... */ });
+it("should show validation errors when submitting an empty form", async () => { /* ... */ });
+it("should cancel creation and return to the list", async () => { /* ... */ });
+it("should display empty state when no payments exist", async () => { /* ... */ });
+```
+
+```typescript
+// BAD — granular per-element tests (NEVER do this)
+it("should display Pre payment label", async () => { /* ... */ });
+it("should display the payment amount", async () => { /* ... */ });
+it("should display the payment date", async () => { /* ... */ });
+it("should display the submit button", async () => { /* ... */ });
+it("should display the cancel button", async () => { /* ... */ });
+```
 
 **Component mocking** — if a component is wrapped with `MockedComponent` from `twd-js/ui`, you can replace it in tests with `twd.mockComponent("Name", () => <div>Mock</div>)`. Always clear with `twd.clearComponentMocks()` in `beforeEach`.
 

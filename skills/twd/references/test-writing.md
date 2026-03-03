@@ -184,11 +184,86 @@ describe("Feature Page", () => {
 
 TWD tests focus on **full user flows**, not granular unit-style assertions. Each `it()` block tests a meaningful user journey through a page.
 
-- **One top-level `describe()` per file** — use nested `describe()` for sub-scenarios
-- Each `it()` covers a complete flow: setup mocks → visit → interact → assert outcome
-- Don't write one test per element — test the full journey
-- Group flows by scenario: happy path, empty states, error handling, CRUD operations
-- Multiple assertions per `it()` is expected — they should tell a story
+#### Do
+
+- **One top-level `describe()` per file** — use nested `describe()` for sub-scenarios.
+- Each `it()` covers a **complete flow**: setup mocks → visit → interact → assert outcome.
+- **Multiple assertions per `it()` are expected** — they should tell a story. If you're on the same page with the same mock setup, assert everything there instead of splitting into separate tests.
+- **Combine related checks** — verifying that a page shows a title, a table, and a button is ONE test ("should load and display the payments list"), not three.
+- **Name `it()` blocks after the user journey**, not after individual elements:
+  - `"should load the payment list and display all columns"`
+  - `"should open the create form, fill fields, and submit successfully"`
+  - `"should show validation errors when submitting an empty form"`
+
+#### Don't
+
+- **Don't write one `it()` per UI element** — "should display title", "should display subtitle", "should display button" is three tests that should be one.
+- **Don't create separate tests for trivially combinable checks** — if two assertions share the same setup (same mocks, same page, same state), combine them.
+- **Don't test implementation details** — test what the user sees and does, not internal component state.
+- **Don't name tests after elements** — `"should display Pre payment label"` describes an element, not a flow.
+
+#### Aim for 3–6 Tests per Feature
+
+Most features can be fully covered with 3–6 `it()` blocks organized into these categories:
+
+| # | Category | What it covers | Example `it()` name |
+|---|----------|---------------|---------------------|
+| 1 | **Happy path A** | Main flow end-to-end | `"should load the list and display all items"` |
+| 2 | **Happy path B** | Reverse or alternate flow | `"should edit an existing item and save changes"` |
+| 3 | **Cancel / negative flow** | User aborts or submits invalid data | `"should cancel creation and return to the list"` |
+| 4 | **Access gates** | Feature flag + permission combined | `"should redirect to forbidden when user lacks permission"` |
+| 5 | **Edge cases** | Empty states, errors, backward compat (combine into 1–2 tests) | `"should display empty state when no items exist"` |
+
+If you're writing 10+ tests for a single page, you're likely too granular. Look for tests that can be combined.
+
+#### Good Example — Flow-Based `it()` Names
+
+```typescript
+describe("Payments Page", () => {
+  beforeEach(() => { /* ... */ });
+
+  describe("listing", () => {
+    it("should load the payment list and display all columns", async () => {
+      // Mock GET → visit → wait → assert heading, table rows, column headers
+    });
+
+    it("should display empty state when no payments exist", async () => {
+      // Mock GET with [] → visit → wait → assert empty message
+    });
+  });
+
+  describe("create flow", () => {
+    it("should open the create form, fill fields, and submit successfully", async () => {
+      // Mock GET + POST → visit → click Add → fill form → submit → assert POST body + success
+    });
+
+    it("should show validation errors when submitting an empty form", async () => {
+      // Mock GET → visit → click Add → submit empty → assert error messages
+    });
+
+    it("should cancel creation and return to the list", async () => {
+      // Mock GET → visit → click Add → click Cancel → assert list is visible
+    });
+  });
+});
+```
+
+#### Bad Example — Granular Per-Element Tests (NEVER do this)
+
+```typescript
+// BAD — each it() tests a single element instead of a flow
+describe("Payments Page", () => {
+  it("should display Pre payment label", async () => { /* ... */ });
+  it("should display the payment amount", async () => { /* ... */ });
+  it("should display the payment date", async () => { /* ... */ });
+  it("should display the status badge", async () => { /* ... */ });
+  it("should display the submit button", async () => { /* ... */ });
+  it("should display the cancel button", async () => { /* ... */ });
+  // 6 tests that should be 1: "should load and display the payment details"
+});
+```
+
+#### File Structure — One Top-Level `describe()`
 
 ```typescript
 // GOOD — one top-level, nested groups
@@ -572,7 +647,7 @@ describe("Items Page", () => {
 4. **Using Node.js APIs** — tests run in the browser, no `fs`, `path`, etc.
 5. **Importing from wrong package** — `describe`/`it`/`beforeEach` from `twd-js/runner`, `expect` from `twd-js`, NOT Jest/Mocha
 6. **Stubbing named exports** — ESM makes them immutable. Use the default-export object pattern
-7. **Writing granular unit tests** — don't write one `it()` per element. Test full user flows
+7. **Writing granular unit tests** — don't write one `it()` per element. Test full user flows. Aim for **3–6 tests per feature** (see "Testing Philosophy" above). Anti-patterns: one `it()` per UI element (`"should display label"`, `"should display button"`), separate tests for checks that share the same setup. If 10+ tests cover a single page, combine them
 8. **Multiple top-level `describe()` blocks** — always use ONE top-level `describe()` per file with nested groups
 9. **Jest-style assertions** — use `expect(x).to.equal(y)` NOT `.toBe(y)`, use `.to.have.length(n)` NOT `.toHaveLength(n)`. TWD uses Chai, not Jest
 10. **Using `body` instead of `response`** in `mockRequest` — the config key is `response`, not `body`
