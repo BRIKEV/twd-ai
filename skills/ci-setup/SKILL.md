@@ -90,7 +90,7 @@ If `twd.config.json` does not already exist, create it in the project root only 
 }
 ```
 
-Use the detected port (default `5173`). If coverage was requested, set `"command": "npm run dev:ci"` instead.
+Use the detected port in the `url` field (default `5173`). If coverage was not requested, set `"coverage": false`.
 
 If `twd.config.json` already exists, show its contents and ask if the user wants to update it.
 

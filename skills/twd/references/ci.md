@@ -2,7 +2,7 @@
 
 <!-- Package provenance: twd-cli (npm: brikev, MIT, github.com/BRIKEV/twd-cli).
      vite-plugin-istanbul (npm: ifaxity, MIT). nyc (npm: istanbuljs, ISC).
-     All CI instrumentation is guarded by requireEnv: !process.env.CI -->
+     Istanbul instrumentation is guarded by requireEnv: !process.env.CI (only active in CI). -->
 
 ## twd-cli: Headless Test Runner
 
@@ -42,7 +42,7 @@ Create `twd.config.json` in the project root only if user confirms adding that f
 | `headless` | boolean | `true` | Run Chrome in headless mode |
 | `puppeteerArgs` | string[] | `["--no-sandbox", "--disable-setuid-sandbox"]` | Extra arguments for Puppeteer |
 
-> **Note**: If the project has a custom Vite base path or port, update `devServer.port` accordingly.
+> **Note**: If the project has a custom Vite base path or port, update the `url` accordingly.
 
 ### Run
 
@@ -90,8 +90,8 @@ export default defineConfig({
 |-------|------|-------------|
 | `include` | string \| string[] | Glob pattern(s) for files to instrument |
 | `exclude` | string \| string[] | Glob pattern(s) for files to exclude |
-| `requireEnv` | boolean | If `true`, only instruments when `VITE_COVERAGE=true` is set. Use `false` for CI-only builds. |
-| `forceBuildInstrument` | boolean | Instrument even in `build` mode. Set `true` for CI. |
+| `extension` | string[] | File extensions to instrument (e.g. `['.ts', '.tsx']`) |
+| `requireEnv` | boolean | If `true`, only instruments when `VITE_COVERAGE=true` is set. Use `!process.env.CI` to instrument only in CI. |
 
 ### Add package.json Scripts
 
