@@ -76,16 +76,17 @@ Run each install command only after the user confirms.
 
 ## Step 4: Create `twd.config.json`
 
-If `twd.config.json` does not already exist, create it in the project root:
+If `twd.config.json` does not already exist, create it in the project root only if user confirms adding that file as this file is not required for twd-cli to work.
 
 ```json
 {
-  "testMatch": "src/**/*.twd.test.ts",
-  "devServer": {
-    "command": "npm run dev",
-    "port": PORT,
-    "timeout": 30000
-  }
+  "url": "http://localhost:5173",
+  "timeout": 10000,
+  "coverage": true,
+  "coverageDir": "./coverage",
+  "nycOutputDir": "./.nyc_output",
+  "headless": true,
+  "puppeteerArgs": ["--no-sandbox", "--disable-setuid-sandbox"]
 }
 ```
 
@@ -109,8 +110,8 @@ Add to the `plugins` array:
 istanbul({
   include: "src/*",
   exclude: ["node_modules", "**/*.twd.test.ts"],
-  requireEnv: false,
-  forceBuildInstrument: true,
+  requireEnv: !process.env.CI,
+  extension: ['.ts', '.tsx'],
 }),
 ```
 

@@ -16,27 +16,31 @@ npm install --save-dev twd-cli
 
 ### Configuration: `twd.config.json`
 
-Create `twd.config.json` in the project root:
+Create `twd.config.json` in the project root only if user confirms adding that file as this file is not required for twd-cli to work.
 
 ```json
 {
-  "testMatch": "src/**/*.twd.test.ts",
-  "devServer": {
-    "command": "npm run dev",
-    "port": 5173,
-    "timeout": 30000
-  }
+  "url": "http://localhost:5173",
+  "timeout": 10000,
+  "coverage": true,
+  "coverageDir": "./coverage",
+  "nycOutputDir": "./.nyc_output",
+  "headless": true,
+  "puppeteerArgs": ["--no-sandbox", "--disable-setuid-sandbox"]
 }
 ```
 
 **Options:**
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `testMatch` | string | `"src/**/*.twd.test.ts"` | Glob pattern for test files |
-| `devServer.command` | string | `"npm run dev"` | Command to start the dev server |
-| `devServer.port` | number | `5173` | Port the dev server listens on |
-| `devServer.timeout` | number | `30000` | Max ms to wait for the dev server to be ready |
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `url` | string | `"http://localhost:5173"` | Dev server URL to open before running tests |
+| `timeout` | number | `10000` | Milliseconds to wait for the page/sidebar |
+| `coverage` | boolean | `true` | Toggle code coverage collection |
+| `coverageDir` | string | `"./coverage"` | Output folder for coverage reports |
+| `nycOutputDir` | string | `"./.nyc_output"` | NYC temp folder |
+| `headless` | boolean | `true` | Run Chrome in headless mode |
+| `puppeteerArgs` | string[] | `["--no-sandbox", "--disable-setuid-sandbox"]` | Extra arguments for Puppeteer |
 
 > **Note**: If the project has a custom Vite base path or port, update `devServer.port` accordingly.
 
@@ -73,8 +77,8 @@ export default defineConfig({
     istanbul({
       include: "src/*",
       exclude: ["node_modules", "**/*.twd.test.ts"],
-      requireEnv: false,
-      forceBuildInstrument: true,
+      extension: ['.ts', '.tsx'],
+      requireEnv: !process.env.CI,
     }),
   ],
 });
@@ -125,83 +129,107 @@ export default defineConfig({
 ### Basic Workflow (No Coverage)
 
 ```yaml
-name: TWD Tests
+name: CI - twd tests
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
-    branches: [main]
+    branches: [ main ]
 
 jobs:
-  twd-tests:
+  test:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
-          cache: "npm"
+          node-version: 24
+          cache: 'npm'
 
-      - run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Start dev server
-        run: npm run dev &
+      - name: Install mock service worker
+        run: npx twd-js init public --save
 
-      - name: Wait for server
-        run: npx wait-on http://localhost:5173 --timeout 30000
+      - name: Start Vite dev server
+        run: |
+          nohup npm run dev > vite.log 2>&1 &
+          npx wait-on http://localhost:5173
+
+      - name: Cache Puppeteer browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/puppeteer
+          key: ${{ runner.os }}-puppeteer-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-puppeteer-
+
+      - name: Install Chrome for Puppeteer
+        run: npx puppeteer browsers install chrome
 
       - name: Run TWD tests
-        run: npm run test:ci
+        run: npx twd-cli run
 ```
 
 ### Workflow with Coverage
 
 ```yaml
-name: TWD Tests
+name: CI - twd tests
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
-    branches: [main]
+    branches: [ main ]
 
 jobs:
-  twd-tests:
+  test:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
-          cache: "npm"
+          node-version: 24
+          cache: 'npm'
 
-      - run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Start dev server with coverage
-        run: npm run dev:ci &
+      - name: Install mock service worker
+        run: npx twd-js init public --save
 
-      - name: Wait for server
-        run: npx wait-on http://localhost:5173 --timeout 30000
+      - name: Start Vite dev server
+        run: |
+          nohup npm run dev:ci > vite.log 2>&1 &
+          npx wait-on http://localhost:5173
+
+      - name: Cache Puppeteer browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/puppeteer
+          key: ${{ runner.os }}-puppeteer-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-puppeteer-
+
+      - name: Install Chrome for Puppeteer
+        run: npx puppeteer browsers install chrome
 
       - name: Run TWD tests
-        run: npm run test:ci
+        run: npx twd-cli run
 
-      - name: Generate coverage reports
+      - name: Display coverage
         run: |
           npm run collect:coverage:text
-          npm run collect:coverage:lcov
-
-      - name: Upload coverage
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage/
 ```
 
 ### Customization Notes
