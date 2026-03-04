@@ -1,6 +1,8 @@
 # TWD Plugin for Claude Code
 
-In-browser testing plugin for Claude Code. Writes, runs, and fixes browser tests for SPAs using [TWD (Test While Developing)](https://github.com/BRIKEV/twd).
+Deterministic in-browser testing plugin for Claude Code. Writes, runs, and fixes component-level browser tests for SPAs using [TWD (Test While Developing)](https://github.com/BRIKEV/twd).
+
+TWD tests run inside the app's own dev server — no separate browser process. This makes them **complementary to E2E tools like Playwright or Cypress**, not a replacement. Use TWD for fast, deterministic component and page-level tests during development; use Playwright/Cypress for full end-to-end flows across multiple pages, real network requests, and cross-browser validation.
 
 ## Installation
 

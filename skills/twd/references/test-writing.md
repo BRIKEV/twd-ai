@@ -1,5 +1,7 @@
 # TWD Test Writing Reference
 
+TWD (Test While Developing) is a **deterministic, in-browser testing tool** that runs inside the app's own Vite dev server. It is **complementary to Playwright/Cypress** — use TWD for fast component and page-level tests with mocked APIs during development; use Playwright/Cypress for full E2E flows across pages, real network, and cross-browser validation. Do NOT treat TWD as a Playwright replacement or write Playwright-style tests with it.
+
 ## Quick Reference
 
 Everything you need for most tests. Only read past this section if you need component mocking, Sinon stubbing, or advanced patterns.
