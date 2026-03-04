@@ -127,6 +127,7 @@ expect(flag).toBeTruthy();          // WRONG
 beforeEach(() => {
   twd.clearRequestMockRules();
   twd.clearComponentMocks();
+  // Reset app state if needed — see "State Management & Test Isolation" below
 });
 ```
 
@@ -145,6 +146,7 @@ describe("Feature Page", () => {
   beforeEach(() => {
     twd.clearRequestMockRules();
     twd.clearComponentMocks();
+    // Reset app state if needed — see "State Management & Test Isolation" below
   });
 
   it("should load and display items", async () => {
@@ -412,6 +414,62 @@ await screenDom.findByText("Success!");        // Wait for element
 await twd.notExists(".loading-spinner");       // Wait for element to NOT exist
 ```
 
+> **Note**: `twd.visit()` uses the History API — it does NOT reload the page. See "State Management & Test Isolation" below for implications.
+
+### State Management & Test Isolation
+
+TWD runs tests directly in the browser **without page reloads**. The `twd.visit()` command simulates SPA navigation using the History API, which means your SPA router re-renders but **in-memory application state is preserved** between tests.
+
+This is a deliberate trade-off: it keeps tests fast and deterministic, but it means state from tools like Zustand, Redux, Jotai, or plain module-level variables will **leak between tests** unless you explicitly reset it.
+
+#### What TWD resets for you
+
+TWD provides built-in reset methods for its own managed state:
+
+```typescript
+beforeEach(() => {
+  twd.clearRequestMockRules();  // Clears API mock rules
+  twd.clearComponentMocks();    // Clears component mocks
+  twd.resetViewport();          // Resets simulated viewport
+});
+```
+
+#### What you need to reset manually
+
+Any state that lives in your application's JavaScript memory persists across tests:
+
+| State type | Example | How to reset |
+|---|---|---|
+| State managers | Zustand, Redux, Jotai, Pinia | Call your store's reset method |
+| Browser storage | localStorage, sessionStorage | `localStorage.clear()` |
+| Module singletons | Caches, counters, flags | Re-assign to initial value |
+| Global event listeners | `window.addEventListener(...)` | Remove in `afterEach` |
+| Timers | `setInterval`, `setTimeout` | Clear in `afterEach` |
+
+Most state management libraries provide a way to reset stores to their initial state. Expose a reset method on your stores and call it in `beforeEach`:
+
+```typescript
+import { resetMyStore } from "../../store";
+
+describe("My feature", () => {
+  beforeEach(() => {
+    twd.clearRequestMockRules();
+    twd.clearComponentMocks();
+    resetMyStore();
+    localStorage.clear();
+  });
+
+  it("should start with clean state", async () => {
+    await twd.visit("/my-page");
+    // State is fresh for every test
+  });
+});
+```
+
+#### Why not just reload the page?
+
+TWD's test runner, sidebar UI, mock service worker, and all test definitions live in the same browser page as your app. A full page reload (`window.location.reload()`) would destroy the test runner itself, losing all test results and state. This is the fundamental constraint of in-browser testing — and the same trade-off other in-browser tools face.
+
 ### API Mocking
 
 Always mock BEFORE `twd.visit()` or the action that triggers the request.
@@ -563,6 +621,7 @@ describe("Items Page", () => {
   beforeEach(() => {
     twd.clearRequestMockRules();
     twd.clearComponentMocks();
+    // Reset app state if needed — see "State Management & Test Isolation" below
   });
 
   describe("listing", () => {
@@ -657,3 +716,4 @@ describe("Items Page", () => {
 12. **Positional args in `mockRequest`** — always use the alias + config object pattern: `await twd.mockRequest("alias", { method, url, response, status })`
 13. **Importing Sinon from `twd-js/sinon`** — Sinon is a standalone npm package. Import as `import Sinon from "sinon"`, NEVER from `twd-js/sinon` or any `twd-js/*` subpath
 14. **Mocking components AFTER visit** — call `twd.mockComponent()` BEFORE `twd.visit()`, same rule as `mockRequest`
+15. **Not resetting app state between tests** — TWD runs without page reloads, so store state, localStorage, and module singletons persist. Always reset in `beforeEach`

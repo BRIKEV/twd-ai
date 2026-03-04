@@ -127,6 +127,8 @@ it("should display the cancel button", async () => { /* ... */ });
 
 **Module stubbing** — for hooks like `useAuth0`, wrap them in a default-export object so Sinon can stub them. ESM named exports are immutable and cannot be stubbed at runtime. Always `Sinon.restore()` in `beforeEach`.
 
+**State isolation** — TWD runs tests without page reloads (`twd.visit()` uses the History API), so in-memory state (Zustand, Redux, Pinia, Jotai, localStorage, module singletons) persists between tests. Always reset stores and clear localStorage in `beforeEach`. See the test-writing reference for details.
+
 **Self-check before proceeding:** Before moving to Phase 4, verify every test file has exactly ONE top-level `describe()`. If any file has multiple, fix it now.
 
 ### Phase 4: Run and Fix

@@ -50,6 +50,9 @@ Use the detected values as defaults. Ask the user to confirm or correct:
    - **If yes**: Which modules? (e.g., Auth0, Stripe, ConfigCat, analytics SDKs, feature flag services)
    - For each module: How is it imported? (e.g., `import { useAuth0 } from '@auth0/auth0-react'`)
    - The agent needs this to know what to Sinon-stub in tests — "test what you own, mock what you don't"
+10. **State management**: Does your project use a state management library? (e.g., Zustand, Redux, Pinia, Jotai, or "none")
+   - If yes: How do you reset the store? (e.g., `useStore.setState(initialState)`, `store.$reset()`)
+   - TWD runs without page reloads — store state persists between tests and must be reset in beforeEach
 
 Skip questions where auto-detection is confident (e.g., framework is obvious from package.json).
 
@@ -102,6 +105,7 @@ beforeEach(() => {
   twd.clearRequestMockRules();
   twd.clearComponentMocks();
   Sinon.restore();
+  // STORE_RESET (if applicable — e.g., useStore.setState(initialState), store.$reset())
   // AUTH_SETUP (if applicable)
   // THIRD_PARTY_STUBS (if applicable — e.g., Sinon.stub(authModule, 'useAuth').returns(...))
 });
@@ -162,6 +166,7 @@ const modal = screenDomGlobal.getByRole("dialog");
 - Omit the "Third-Party Modules" section entirely if no external modules
 - Omit the "CSS / Component Library" section if none detected
 - Omit the "API Service Types" section if no services folder found
+- Omit the `STORE_RESET` comment in beforeEach if no state management library
 
 ## Step 4: Optionally Run Setup
 
