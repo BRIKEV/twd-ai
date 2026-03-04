@@ -21,7 +21,7 @@ This copies `mock-sw.js` to the `public/` directory. If the public directory has
 
 ## Step 3: Configure Entry Point
 
-TWD should only load in development mode.
+TWD should only load in development mode. **Insert the DEV block BEFORE the existing app mount code** (e.g., before `createRoot`, `createApp`, `bootstrapApplication`). Read the existing entry point first and preserve all existing code — only add the TWD block above it.
 
 ### Bundled Setup (Recommended — all frameworks)
 
