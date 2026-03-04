@@ -1,6 +1,8 @@
 # TWD Test Writing Reference
 
-TWD (Test While Developing) is a **deterministic, in-browser testing tool** that runs inside the app's own Vite dev server. It is **complementary to Playwright/Cypress** — use TWD for fast component and page-level tests with mocked APIs during development; use Playwright/Cypress for full E2E flows across pages, real network, and cross-browser validation. Do NOT treat TWD as a Playwright replacement or write Playwright-style tests with it.
+TWD (Test While Developing) is a **deterministic, in-browser testing tool** that runs inside the app's own Vite dev server. Tests are deterministic because all external dependencies — network requests, third-party providers, viewport size — are mocked or controlled by the test. It is **complementary to Playwright/Cypress** — use TWD for fast component and page-level tests with mocked APIs during development; use Playwright/Cypress for full E2E flows across pages, real network, and cross-browser validation. Do NOT treat TWD as a Playwright replacement or write Playwright-style tests with it.
+
+> **Runners**: TWD has two runners — **`twd-relay`** (dev) connects via WebSocket to the browser tab you already have open, and **`twd-cli`** (CI) launches a headless browser via Puppeteer. Both execute the same tests. See `running-tests.md` for details.
 
 ## Quick Reference
 
@@ -430,7 +432,6 @@ TWD provides built-in reset methods for its own managed state:
 beforeEach(() => {
   twd.clearRequestMockRules();  // Clears API mock rules
   twd.clearComponentMocks();    // Clears component mocks
-  twd.resetViewport();          // Resets simulated viewport
 });
 ```
 

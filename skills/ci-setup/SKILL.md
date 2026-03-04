@@ -1,6 +1,6 @@
 ---
 name: ci-setup
-description: Set up CI for TWD tests — generates GitHub Actions workflow, installs twd-cli, optionally configures code coverage
+description: Sets up CI for TWD tests — generates GitHub Actions workflow, installs twd-cli, optionally configures code coverage
 disable-model-invocation: true
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(npm install *)]
 ---

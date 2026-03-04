@@ -237,5 +237,5 @@ When done, summarize:
 - **Package installation**: Only `twd-js` and `twd-relay` — no other packages
 - **Write scope**: Test files (`src/twd-tests/**`), mock data files (`src/twd-tests/mocks/`), vite config (TWD plugins only), entry point (DEV-guarded init block)
 - **Execution scope**: Only `npx twd-js init <dir> --save`, `npx twd-relay run [--port --path]`, and `npx twd-cli run`
-- **No production code**: All TWD code must be behind `import.meta.env.DEV` guards
+- **No production code**: All TWD code must be behind `import.meta.env.DEV` guards — TWD's sidebar UI, mock service worker, and test definitions are development tools that Vite tree-shakes out of production builds automatically when guarded by `import.meta.env.DEV`
 - **No app code changes** unless the user explicitly requests it — fix tests, not application code, by default

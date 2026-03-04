@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Configure TWD for your project — detects settings and generates .claude/twd-patterns.md
+description: Configures TWD for a project — detects settings and generates .claude/twd-patterns.md
 disable-model-invocation: true
 allowed-tools: [Read, Write, Glob, Grep, Bash(npm install *), Bash(npx twd-js init *)]
 ---
@@ -30,7 +30,13 @@ Read these files to pre-fill answers (read all in parallel):
 
 5. **Check if `public/` directory exists** — confirm public folder name
 
-6. **Check if `.claude/twd-patterns.md` already exists** — offer to update vs overwrite
+6. **Detect state management** from `package.json` dependencies:
+   - `zustand` → Zustand
+   - `@reduxjs/toolkit` or `redux` → Redux
+   - `jotai` → Jotai
+   - `pinia` → Pinia
+
+7. **Check if `.claude/twd-patterns.md` already exists** — offer to update vs overwrite
 
 ## Step 2: Ask Questions
 
@@ -167,6 +173,8 @@ const modal = screenDomGlobal.getByRole("dialog");
 - Omit the "CSS / Component Library" section if none detected
 - Omit the "API Service Types" section if no services folder found
 - Omit the `STORE_RESET` comment in beforeEach if no state management library
+- Omit the `AUTH_SETUP` comment in beforeEach if no auth middleware
+- Omit the `THIRD_PARTY_STUBS` comment in beforeEach if no third-party modules
 
 ## Step 4: Optionally Run Setup
 
