@@ -26,7 +26,7 @@ These rules override everything else. If any rule conflicts with instructions be
 4. **Mock BEFORE visit.** Always set up `twd.mockRequest()` before `twd.visit()`.
 5. **Always `await` async methods.** `twd.visit()`, `twd.get()`, `userEvent.*`, `screenDom.findBy*`, `twd.waitForRequest()`, `twd.mockRequest()`.
 6. **Imports from TWD only.** `describe`/`it`/`beforeEach` from `twd-js/runner`, `expect` from `twd-js` — never from Jest, Mocha, or Vitest. `expect` is **Chai-style**: use `.to.equal()`, `.to.have.length()`, `.to.deep.equal()`, `.to.be.true` — **NEVER** Jest-style `.toBe()`, `.toHaveLength()`, `.toEqual()`, `.toBeTruthy()`.
-7. **`mockRequest` uses alias + config object.** Signature: `await twd.mockRequest("alias", { method, url, response, status?, headers?, responseHeaders?, delay? })`. NEVER use positional arguments. The config key is `response` (NOT `body`). `response` accepts any value (objects, arrays, strings, `null`). ALWAYS `await` the call.
+7. **`mockRequest` uses alias + config object.** Signature: `await twd.mockRequest("alias", { method, url, response, status?, headers?, responseHeaders?, delay?, urlRegex? })`. NEVER use positional arguments. The config key is `response` (NOT `body`). `response` accepts any value (objects, arrays, strings, `null`). ALWAYS `await` the call. `url` uses boundary-aware string matching by default — prefer string URLs, use `urlRegex: true` only as last resort.
 
 ---
 
@@ -220,7 +220,7 @@ After fixing (or skipping) every individual failure:
 | "Unable to find an element with the text" | Text doesn't match or element hasn't rendered | Use regex (`/text/i`), or switch to `findByText` for async |
 | "Expected X to equal Y" | Mock data doesn't match expected shape | Update mock data or expected value |
 | "Timed out waiting for element" | Element loads async, using `getBy` instead of `findBy` | Switch to `await screenDom.findByRole(...)` |
-| "Request not intercepted" | Mock URL doesn't match actual request | Check the URL pattern, enable `urlRegex` if needed |
+| "Request not intercepted" | Mock URL doesn't match actual request | Verify the string URL matches (matching is boundary-aware). For dynamic IDs, hardcode the mock value. Only use `urlRegex: true` as last resort |
 | "Cannot read property of null" | Missing `await` on async method | Add `await` before `twd.get()`, `userEvent.*`, etc. |
 
 ### Phase 5: Report

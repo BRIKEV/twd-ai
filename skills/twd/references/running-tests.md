@@ -60,7 +60,7 @@ When tests fail, the output includes:
 | "Unable to find an element with the text" | Text doesn't match or element hasn't rendered | Use regex (`/text/i`), or switch to `findByText` for async |
 | "Expected X to equal Y" | Mock data doesn't match expected shape | Update mock data or expected value |
 | "Timed out waiting for element" | Element loads async, using `getBy` instead of `findBy` | Switch to `await screenDom.findByRole(...)` |
-| "Request not intercepted" | Mock URL doesn't match actual request | Check the URL pattern, enable `urlRegex` if needed |
+| "Request not intercepted" | Mock URL doesn't match actual request | Verify the string URL matches (matching is boundary-aware). For dynamic IDs, hardcode the mock value. Only use `urlRegex: true` as last resort |
 | "Cannot read property of null" | Missing `await` on async method | Add `await` before `twd.get()`, `userEvent.*`, etc. |
 | "twd.mockRequest is not a function" | Service worker not initialized | Ensure `serviceWorker: true` in `initTWD` options |
 

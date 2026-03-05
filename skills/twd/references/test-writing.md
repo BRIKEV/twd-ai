@@ -48,7 +48,7 @@ await twd.visit("/page");
 await twd.waitForRequest("labelName");
 ```
 
-> **Important**: `mockRequest` always needs `await`. The second argument uses `response` (NOT `body`). The signature is: `await twd.mockRequest("alias", { method, url, response, status?, headers?, responseHeaders?, delay? })`. The `response` field accepts any value — objects, arrays, strings, `null`, etc.
+> **Important**: `mockRequest` always needs `await`. The second argument uses `response` (NOT `body`). The signature is: `await twd.mockRequest("alias", { method, url, response, status?, headers?, responseHeaders?, delay?, urlRegex? })`. The `response` field accepts any value — objects, arrays, strings, `null`, etc.
 
 #### Full `mockRequest` Options
 
@@ -61,6 +61,7 @@ await twd.mockRequest("alias", {
   headers?: Record<string, string>,         // Response headers
   responseHeaders?: Record<string, string>, // Alternative name for headers
   delay?: number,              // Simulated network delay in ms
+  urlRegex?: boolean,          // Enable regex matching for url (default: false)
 });
 ```
 
@@ -102,6 +103,21 @@ await twd.mockRequest("slowRequest", {
   status: 200,
   delay: 1000,
   responseHeaders: { "X-Request-Id": "abc-123" },
+});
+
+// WRONG — unnecessary regex (string match already handles boundaries)
+await twd.mockRequest("getUser", {
+  method: "GET",
+  url: /^\/api\/users$/,
+  urlRegex: true,
+  response: { id: 1, name: "User" },
+});
+
+// RIGHT — string match handles this automatically
+await twd.mockRequest("getUser", {
+  method: "GET",
+  url: "/api/users",
+  response: { id: 1, name: "User" },
 });
 ```
 
@@ -475,8 +491,27 @@ TWD's test runner, sidebar UI, mock service worker, and all test definitions liv
 
 Always mock BEFORE `twd.visit()` or the action that triggers the request.
 
+#### URL Matching — How It Works
+
+> **Priority: use string URLs first, regex only as last resort.**
+
+**1. String match (default, preferred)**
+
+The `url` string is matched against the full request URL using boundary-aware substring matching. Valid boundaries after the match: end-of-string, `?`, `#`, `&`. If the match extends past the query string start, it's always valid.
+
+| Rule `url` | Request URL | Matches? | Why |
+|---|---|---|---|
+| `/api/users` | `http://localhost/api/users` | Yes | End-of-string boundary |
+| `/api/users` | `http://localhost/api/users?page=1` | Yes | `?` boundary |
+| `/api/users` | `/api/users/123` | **No** | `/` is not a valid boundary — sub-paths are different resources |
+| `/api/item` | `/api/items` | **No** | `s` is not a valid boundary — partial segments rejected |
+| `/user` | `/username` | **No** | Same reason — partial segments rejected |
+| `https://api.example.com/search?q=` | `https://api.example.com/search?q=friends` | Yes | Match extends past `?`, always valid |
+
+Requests to URLs with file extensions (`.json`, `.js`, `.css`, `.html`, `.ts`, etc.) are automatically filtered out unless the rule URL also has a file extension.
+
 ```typescript
-// Mock GET
+// Mock GET — string match handles path boundaries automatically
 await twd.mockRequest("getUser", {
   method: "GET",
   url: "/api/user/123",
@@ -484,20 +519,52 @@ await twd.mockRequest("getUser", {
   status: 200,
 });
 
+// For dynamic IDs, hardcode the mock value
+await twd.mockRequest("getUser", {
+  method: "GET",
+  url: "/api/users/456",
+  response: { id: 456, name: "Test User" },
+});
+
+// For external APIs with full domain
+await twd.mockRequest("searchShows", {
+  method: "GET",
+  url: "https://api.tvmaze.com/search/shows?q=",
+  response: [{ show: { name: "Friends" } }],
+});
+```
+
+**2. Regex match (last resort)** — set `urlRegex: true`:
+- Only use when the URL segment is truly unpredictable at mock time
+- Invalid regex strings silently fail (no match, no throw)
+
+```typescript
+// RegExp literal
+await twd.mockRequest("getUserById", {
+  method: "GET",
+  url: /\/api\/users\/\d+/,
+  response: { id: 999, name: "Dynamic User" },
+  urlRegex: true,
+});
+
+// String regex (starts with ^)
+await twd.mockRequest("getUserById", {
+  method: "GET",
+  url: "^.*/api/users/\\d+",
+  response: { id: 999, name: "Dynamic User" },
+  urlRegex: true,
+});
+```
+
+#### Other `mockRequest` patterns
+
+```typescript
 // Mock POST
 await twd.mockRequest("createUser", {
   method: "POST",
   url: "/api/users",
   response: { id: 456, created: true },
   status: 201,
-});
-
-// Regex URL matching
-await twd.mockRequest("getUserById", {
-  method: "GET",
-  url: /\/api\/users\/\d+/,
-  response: { id: 999, name: "Dynamic User" },
-  urlRegex: true,
 });
 
 // Error responses
@@ -718,3 +785,4 @@ describe("Items Page", () => {
 13. **Importing Sinon from `twd-js/sinon`** — Sinon is a standalone npm package. Import as `import Sinon from "sinon"`, NEVER from `twd-js/sinon` or any `twd-js/*` subpath
 14. **Mocking components AFTER visit** — call `twd.mockComponent()` BEFORE `twd.visit()`, same rule as `mockRequest`
 15. **Not resetting app state between tests** — TWD runs without page reloads, so store state, localStorage, and module singletons persist. Always reset in `beforeEach`
+16. **Using regex when string match suffices** — string matching is boundary-aware: `/api/users` won't match `/api/users/123` or `/api/items`. For dynamic IDs, hardcode the mock value (e.g., `url: "/api/users/456"`). Only use `urlRegex: true` when the segment is truly unpredictable at mock time
