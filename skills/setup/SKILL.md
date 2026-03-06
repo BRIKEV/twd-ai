@@ -2,7 +2,7 @@
 name: setup
 description: Configures TWD for a project — detects settings and generates .claude/twd-patterns.md
 disable-model-invocation: true
-allowed-tools: [Read, Write, Glob, Grep, Bash(npm install *), Bash(npx twd-js init *)]
+allowed-tools: [Read, Write, Glob, Grep, Bash(npm install *), Bash(npx twd-js init *), AskUserQuestion]
 ---
 
 # TWD Project Setup
@@ -40,27 +40,37 @@ Read these files to pre-fill answers (read all in parallel):
 
 ## Step 2: Ask Questions
 
-Use the detected values as defaults. Ask the user to confirm or correct:
+**IMPORTANT: Use the `AskUserQuestion` tool for ALL questions.** This provides an interactive UI experience. Never dump questions as a plain numbered list in text output.
 
-1. **Framework**: Detected X — is this correct? (React / Vue / Angular / Solid)
-2. **Vite base path**: Detected `BASE` — is this correct? (default `/`)
-3. **Public folder**: Detected `public/` — is this correct?
-4. **Dev server port**: Detected `PORT` — is this correct? (default `5173`)
-5. **Entry point file**: Detected `FILE` — is this correct?
-6. **API services folder**: Detected `FOLDER` — where are your API types/services? (path or "none")
-7. **CSS/component library**: Detected `LIB` — is this correct? (or "none")
-   - **If a CSS library was detected**: Where are the docs? (URL, local path, or "skip")
-8. **Auth middleware**: Does your project have route-based auth/permissions? (yes/no)
-   - **If yes**: Briefly describe the pattern (e.g., "useAuth hook checks permissions per route")
-9. **Third-party modules**: Does your project use external services that need to be mocked/stubbed in tests? (yes/no)
-   - **If yes**: Which modules? (e.g., Auth0, Stripe, ConfigCat, analytics SDKs, feature flag services)
-   - For each module: How is it imported? (e.g., `import { useAuth0 } from '@auth0/auth0-react'`)
+Present auto-detected values as a summary first, then ask questions in two batches:
+
+### Batch 1: Project basics (confirm auto-detected values)
+
+**Do NOT ask individual questions for values you already detected.** Show a single summary of all detected values and ask "Does anything look wrong?" using `AskUserQuestion`. The user only needs to respond if something is incorrect. Example:
+
+> Here's what I detected:
+> - Framework: React
+> - Vite base path: `/`
+> - Dev server port: `5173`
+> - Entry point: `src/main.tsx`
+> - Public folder: `public/`
+> - API services: `src/services/`
+> - CSS library: MUI
+> - State management: Zustand
+>
+> Does anything look wrong, or should I continue?
+
+### Batch 2: Testing concerns (need user input)
+
+After confirming batch 1, use `AskUserQuestion` for each of these that requires user input:
+
+1. **CSS library docs** (only if a CSS library was detected): Where are the docs? (URL, local path, or "skip")
+2. **Auth middleware**: Does your project have route-based auth/permissions? If yes, briefly describe the pattern.
+3. **Third-party modules**: Does your project use external services that need mocking in tests? (e.g., Auth0, Stripe, analytics)
+   - If yes: Which modules and how are they imported?
    - The agent needs this to know what to Sinon-stub in tests — "test what you own, mock what you don't"
-10. **State management**: Does your project use a state management library? (e.g., Zustand, Redux, Pinia, Jotai, or "none")
-   - If yes: How do you reset the store? (e.g., `useStore.setState(initialState)`, `store.$reset()`)
+4. **State reset** (only if state management was detected): How do you reset the store? (e.g., `useStore.setState(initialState)`, `store.$reset()`)
    - TWD runs without page reloads — store state persists between tests and must be reset in beforeEach
-
-Skip questions where auto-detection is confident (e.g., framework is obvious from package.json).
 
 ## Step 3: Generate `.claude/twd-patterns.md`
 
@@ -183,8 +193,44 @@ After generating the config file, check if TWD is already installed. If not, ask
 1. `npm install twd-js`
 2. `npm install --save-dev twd-relay`
 3. `npx twd-js init PUBLIC_DIR --save`
-4. Configure entry point with relay client (show the complete DEV block from `references/setup.md` Step 3, including the `initTWD` call and the `createBrowserClient` connection — all inside one `import.meta.env.DEV` guard)
-5. Add Vite plugins: `twdHmr()` from `twd-js/vite-plugin` and `twdRemote() as PluginOption` from `twd-relay/vite` (with `import type { PluginOption } from 'vite'`)
+4. Configure entry point — **insert this DEV block BEFORE the existing app mount code** (before `createRoot`, `createApp`, etc.). The import is **`twd-js/bundled`**, NOT `twd-js`:
+
+```typescript
+if (import.meta.env.DEV) {
+  const { initTWD } = await import('twd-js/bundled');
+  const tests = import.meta.glob("./**/*.twd.test.ts");
+
+  initTWD(tests, {
+    open: true,
+    position: 'left',
+    serviceWorker: true,
+    serviceWorkerUrl: '/mock-sw.js',
+  });
+
+  // Connect twd-relay browser client
+  const { createBrowserClient } = await import('twd-relay/browser');
+  const client = createBrowserClient({ url: `${window.location.origin}/__twd/ws` });
+  client.connect();
+}
+```
+
+   > **Adjustments**: If Vite `base` is not `/`, update `serviceWorkerUrl` to `'/BASE/mock-sw.js'` and relay URL to `` `${window.location.origin}/BASE/__twd/ws` ``.
+
+5. Add Vite plugins:
+
+```typescript
+import { twdHmr } from 'twd-js/vite-plugin';
+import { twdRemote } from 'twd-relay/vite';
+import type { PluginOption } from 'vite';
+
+// Add to plugins array:
+plugins: [
+  // ... other plugins
+  twdHmr(),
+  twdRemote() as PluginOption,
+]
+```
+
 6. Write a first test file
 
 Only run steps the user approves. Show what each step does before executing.
