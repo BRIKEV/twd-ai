@@ -96,20 +96,14 @@ The `twd` agent reads this file at the start of every run to use project-specifi
 
 ## Updating the Plugin
 
-The plugin is cached locally when installed. To get the latest version after an update:
+First refresh the marketplace, then update the plugin:
 
 ```bash
-# Remove and reinstall (the marketplace stays, only the plugin needs reinstalling)
-claude plugin remove twd@twd-ai
-claude plugin install twd@twd-ai
+claude plugin marketplace update twd-ai
+claude plugin update twd@twd-ai
 ```
 
-Or if you installed from a local path:
-
-```bash
-claude plugin remove twd@twd-ai
-claude plugin add /path/to/twd-ai
-```
+Restart Claude Code to apply changes.
 
 ## License
 
