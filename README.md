@@ -59,6 +59,110 @@ The agent follows a 5-phase workflow:
 4. **Run & Fix** — runs tests via twd-relay, isolates failures with `it.only()`, fixes them
 5. **Report** — summarizes coverage and results
 
+### `/twd:test-flow-gallery` Command
+
+Reads TWD test files and generates visual Mermaid flowcharts with plain-language summaries — living documentation auto-generated from real tests.
+
+```
+/twd:test-flow-gallery
+```
+
+What it does:
+- Reads all `*.twd.test.{ts,js}` files in the project
+- Generates a `.flows.md` file next to each test file with Mermaid diagrams
+- Creates a `test-flow-gallery.md` index at the project root
+- Each `it()` block gets a plain-language summary + color-coded flowchart
+
+Example output per test:
+
+```
+## Items Page
+
+**What this tests:** A user navigates to the items page and sees a list of
+all available items. The page loads data from the API and displays each item
+as a list entry.
+```
+
+Followed by a Mermaid flowchart showing the user flow (purple visit nodes, blue actions, green assertions) and API layer (orange request/response subgraphs).
+
+### `/twd:test-gaps` Command
+
+Scans project routes and cross-references against TWD test files to find untested pages, classify risk, and generate a prioritized gap report.
+
+```
+/twd:test-gaps
+```
+
+What it does:
+- Detects your framework and reads the route config (React Router, Vue Router, Angular, Next.js, Nuxt, SolidJS)
+- Discovers all TWD test files and extracts tested routes
+- Identifies UNTESTED and PARTIALLY TESTED pages
+- Classifies risk: HIGH (mutations, payments), MEDIUM (auth, complex loading), LOW (static, read-only)
+- Outputs a prioritized "Start Here" top-5 list
+
+Example output:
+
+```
+## Summary
+- Pages/routes discovered: 22
+- Pages with tests: 15
+- Pages partially tested: 2
+- Pages untested: 5
+
+## UNTESTED Pages — HIGH Risk
+| Page        | Path              | Why High Risk                    |
+|-------------|-------------------|----------------------------------|
+| Checkout    | /checkout         | Handles payments — direct impact |
+| User Settings | /settings/account | Has delete account flow         |
+```
+
+If no TWD tests are found, the skill detects other test frameworks (Playwright, Jest, etc.) and explains how TWD complements them.
+
+### `/twd:test-quality` Command
+
+Reads TWD test files, evaluates quality across four dimensions, assigns letter grades (A/B/C/D), and generates an improvement report.
+
+```
+/twd:test-quality
+```
+
+What it does:
+- Grades each test file across 4 dimensions:
+  - **Journey Coverage** (35%) — complete user flows vs visibility-only checks
+  - **Interaction Depth** (20%) — variety of `userEvent` types (click, type, keyboard, etc.)
+  - **Assertion Quality** (25%) — `be.visible` (weak) to `deep.equal` on API payloads (strong)
+  - **Error & Edge Cases** (20%) — error states, empty states, cancel flows
+- Assigns a final letter grade per file and an overall project grade
+- Generates specific grade-up suggestions per file
+- Ranks improvements by impact
+
+Example output:
+
+```
+# TWD Test Quality Report
+Files analyzed: 8
+Overall grade: C
+
+## Grade Distribution
+| Grade | Count | Files                                    |
+|-------|-------|------------------------------------------|
+| A     | 2     | user-list.twd.test.ts, order-list.twd.test.ts |
+| D     | 2     | payment-list.twd.test.ts, item-create.twd.test.ts |
+
+### payment-list.twd.test.ts — Grade D
+| Dimension        | Grade | Notes                              |
+|------------------|-------|------------------------------------|
+| Journey Coverage | D     | 1 test, visibility check only      |
+| Interaction Depth| D     | No userEvent calls                 |
+| Assertion Quality| D     | Only be.visible and greaterThan(1) |
+| Error & Edge Cases| D    | Only happy path                    |
+
+**To reach grade C:** Add a search test with userEvent.type + URL assertion.
+Add column header assertions with have.text.
+```
+
+Works best alongside `/twd:test-gaps` — gaps tells you **what's untested**, quality tells you **if existing tests are any good**.
+
 ## Supported Frameworks
 
 - React
