@@ -52,6 +52,8 @@ await twd.waitForRequest("labelName");
 
 > **Debugging mock matches**: `twd.getRequestCount("alias")` returns how many times a mock was hit. `twd.getRequestCounts()` returns `{ alias: count, ... }` for all mocks. Use these when `waitForRequest` times out to check if the URL/method is matching. Counters reset with `twd.clearRequestMockRules()`.
 
+> **Cross-origin requests**: The mock service worker intercepts **all** requests made from the page, including cross-origin URLs (e.g., third-party APIs like payment providers or analytics services). You can mock any URL your frontend calls, regardless of domain.
+
 #### Full `mockRequest` Options
 
 ```typescript
