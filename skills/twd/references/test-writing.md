@@ -799,3 +799,4 @@ describe("Items Page", () => {
 15. **Not resetting app state between tests** — TWD runs without page reloads, so store state, localStorage, and module singletons persist. Always reset in `beforeEach`
 16. **Using regex when string match suffices** — string matching is boundary-aware: `/api/users` won't match `/api/users/123` or `/api/items`. For dynamic IDs, hardcode the mock value (e.g., `url: "/api/users/456"`). Only use `urlRegex: true` when the segment is truly unpredictable at mock time
 17. **Using `rule.request.body` instead of `rule.request`** — `waitForRequest` returns a rule where `.request` IS the parsed body directly. Writing `rule.request.body.X` throws `Cannot read properties of undefined`. Correct: `expect(rule.request).to.deep.equal({ ... })`
+18. **Using `it.only()` to isolate tests** — use `npx twd-relay run --test "name"` instead, which doesn't require editing the test file and avoids the risk of forgetting to remove `it.only()`

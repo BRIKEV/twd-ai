@@ -19,7 +19,19 @@ npx twd-relay run --port 5173 --path "/my-app/__twd/ws"
 
 Exit code 0 = all passed, 1 = failures.
 
-**The ONLY way to isolate a single test is `it.only()` in the test file.** The relay will still load all files, but only the `it.only()` test will execute.
+## Running Specific Tests
+
+Use `--test` to isolate tests by name (substring match, case-insensitive):
+
+```bash
+# Run tests matching "should show error"
+npx twd-relay run --test "should show error"
+
+# Run multiple specific tests (OR logic — matches any)
+npx twd-relay run --test "login" --test "signup"
+```
+
+When no tests match the filter, the CLI prints the available test names so you can correct the filter.
 
 ## Running Tests Headlessly (CI)
 
@@ -66,7 +78,7 @@ When tests fail, the output includes:
 
 ## Debugging Tips
 
-- Use `it.only("test name", ...)` to isolate a single test
+- Use `npx twd-relay run --test "test name"` to isolate a single test
 - Add `await twd.wait(2000)` to pause and visually inspect the page
 - Check the browser console for JavaScript errors
 - Verify mock URLs match by reading the API/service layer code

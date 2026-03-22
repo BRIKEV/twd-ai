@@ -21,13 +21,12 @@ agent: general-purpose
 These rules override everything else. If any rule conflicts with instructions below, the rule here wins.
 
 1. **ONE top-level `describe()` per file.** Nest sub-scenarios with inner `describe()` blocks. Multiple top-level describes break the test runner.
-2. **`it.only()` is MANDATORY before any fix attempt.** The relay runs ALL tests — `it.only()` is the ONLY isolation mechanism. Never re-run the full suite to verify a single fix.
-3. **Remove ALL `it.only()` before the final full-suite run.** Leaving `it.only()` silently skips other tests.
-4. **Mock BEFORE visit.** Always set up `twd.mockRequest()` before `twd.visit()`.
-5. **Always `await` async methods.** `twd.visit()`, `twd.get()`, `userEvent.*`, `screenDom.findBy*`, `twd.waitForRequest()`, `twd.mockRequest()`.
-6. **Imports from TWD only.** `describe`/`it`/`beforeEach` from `twd-js/runner`, `expect` from `twd-js` — never from Jest, Mocha, or Vitest. `expect` is **Chai-style**: use `.to.equal()`, `.to.have.length()`, `.to.deep.equal()`, `.to.be.true` — **NEVER** Jest-style `.toBe()`, `.toHaveLength()`, `.toEqual()`, `.toBeTruthy()`.
-7. **`mockRequest` uses alias + config object.** Signature: `await twd.mockRequest("alias", { method, url, response, status?, headers?, responseHeaders?, delay?, urlRegex? })`. NEVER use positional arguments. The config key is `response` (NOT `body`). `response` accepts any value (objects, arrays, strings, `null`). ALWAYS `await` the call. `url` uses boundary-aware string matching by default — prefer string URLs, use `urlRegex: true` only as last resort.
-8. **`rule.request` IS the body — NEVER use `rule.request.body`.** `await twd.waitForRequest("alias")` returns a rule where `rule.request` contains the parsed request body directly. Writing `rule.request.body.X` will throw `Cannot read properties of undefined`. Correct: `expect(rule.request).to.deep.equal({ ... })`.
+2. **Use `--test "name"` to isolate failing tests.** Never re-run the full suite to verify a single fix. Use `npx twd-relay run --test "failing test name"`. For multiple tests: `--test "one" --test "two"`. Matching is substring and case-insensitive.
+3. **Mock BEFORE visit.** Always set up `twd.mockRequest()` before `twd.visit()`.
+4. **Always `await` async methods.** `twd.visit()`, `twd.get()`, `userEvent.*`, `screenDom.findBy*`, `twd.waitForRequest()`, `twd.mockRequest()`.
+5. **Imports from TWD only.** `describe`/`it`/`beforeEach` from `twd-js/runner`, `expect` from `twd-js` — never from Jest, Mocha, or Vitest. `expect` is **Chai-style**: use `.to.equal()`, `.to.have.length()`, `.to.deep.equal()`, `.to.be.true` — **NEVER** Jest-style `.toBe()`, `.toHaveLength()`, `.toEqual()`, `.toBeTruthy()`.
+6. **`mockRequest` uses alias + config object.** Signature: `await twd.mockRequest("alias", { method, url, response, status?, headers?, responseHeaders?, delay?, urlRegex? })`. NEVER use positional arguments. The config key is `response` (NOT `body`). `response` accepts any value (objects, arrays, strings, `null`). ALWAYS `await` the call. `url` uses boundary-aware string matching by default — prefer string URLs, use `urlRegex: true` only as last resort.
+7. **`rule.request` IS the body — NEVER use `rule.request.body`.** `await twd.waitForRequest("alias")` returns a rule where `rule.request` contains the parsed request body directly. Writing `rule.request.body.X` will throw `Cannot read properties of undefined`. Correct: `expect(rule.request).to.deep.equal({ ... })`.
 
 ---
 
@@ -141,8 +140,7 @@ Read the reference file `references/running-tests.md` for running and debugging 
 1. **Is the dev server running?** Ask the user to confirm their dev server is running (`npm run dev` or equivalent) in a separate terminal. The relay connects to the running dev server — without it, there's nothing to connect to.
 2. **Is the app open in a browser tab?** Ask the user to confirm the app is open at `http://localhost:PORT`. Unlike Playwright/Cypress, twd-relay does NOT launch a browser — it's a live watch tool that dispatches tests into the tab the developer already has open.
 3. Every test file has ONE top-level `describe()`
-4. No `it.only()` is present in any file
-5. All mocks are set up BEFORE `twd.visit()`
+4. All mocks are set up BEFORE `twd.visit()`
 
 > **Do NOT proceed until the user confirms items 1 and 2.** The relay will fail silently or time out otherwise.
 
@@ -160,16 +158,20 @@ If all tests pass, skip to Phase 5. If tests fail, follow the fix loop below.
 
 #### Fix Loop — MANDATORY
 
-Do NOT re-run the full suite to verify a single fix. Always isolate first.
+Do NOT re-run the full suite to verify a single fix. Always isolate first with `--test`.
 
 **Step 1: Isolate the failing test (REQUIRED)**
 
-**Before any fix attempt**, change `it(` to `it.only(` on the failing test. This is **not optional** — it prevents running the entire suite on every retry.
+**Before any fix attempt**, re-run using `--test` with the failing test name. This is **not optional** — it prevents running the entire suite on every retry. No file edits needed.
 
-```typescript
-// Change:  it("should render list", async () => {
-// To:      it.only("should render list", async () => {
+```bash
+npx twd-relay run --test "should render list"
+
+# Multiple failing tests at once:
+npx twd-relay run --test "should render list" --test "should show error"
 ```
+
+Matching is substring and case-insensitive. If no tests match, the CLI prints available test names.
 
 **Step 2: Diagnose and fix**
 
@@ -179,24 +181,17 @@ Do NOT re-run the full suite to verify a single fix. Always isolate first.
 4. **Read the API layer** — verify mock URLs and response shapes match
 5. **Fix the root cause** — don't just suppress the error
 
-**Step 3: Re-run the suite**
+**Step 3: Re-run the isolated test**
 
-The relay always runs all files. The `it.only()` ensures only the isolated test executes:
-
-```bash
-npx twd-relay run
-```
-
-Or with custom config:
+Re-run the same `--test` command to verify the fix:
 
 ```bash
-npx twd-relay run --port PORT --path "BASE/__twd/ws"
+npx twd-relay run --test "should render list"
 ```
 
 **Step 4: Same error 3 times → skip it**
 
 If the **same error** persists after 3 fix attempts on the same test:
-- Revert `it.only()` back to `it()`
 - Change to `it.skip()` instead
 - Add a comment explaining why
 
@@ -205,13 +200,13 @@ If the **same error** persists after 3 fix attempts on the same test:
 it.skip("should submit the form", async () => {
 ```
 
-**Step 5: Remove ALL `it.only()` and run the full suite**
+**Step 5: Run the full suite**
 
-After fixing (or skipping) every individual failure:
-1. **Remove every `it.only()`** you added — revert them back to plain `it()`
-2. **Run the full suite** to confirm everything passes together
+After fixing (or skipping) every individual failure, run without `--test` to confirm everything passes together:
 
-> **Critical**: Never leave `it.only()` in the final code. It causes all other tests in the file to be silently skipped.
+```bash
+npx twd-relay run
+```
 
 #### Common Fixes
 
