@@ -19,7 +19,19 @@ npx twd-relay run --port 5173 --path "/my-app/__twd/ws"
 
 Exit code 0 = all passed, 1 = failures.
 
-**The ONLY way to isolate a single test is `it.only()` in the test file.** The relay will still load all files, but only the `it.only()` test will execute.
+## Running Specific Tests
+
+Use `--test` to isolate tests by name (substring match, case-insensitive):
+
+```bash
+# Run tests matching "should show error"
+npx twd-relay run --test "should show error"
+
+# Run multiple specific tests (OR logic — matches any)
+npx twd-relay run --test "login" --test "signup"
+```
+
+When no tests match the filter, the CLI prints the available test names so you can correct the filter.
 
 ## Running Tests Headlessly (CI)
 
@@ -60,13 +72,17 @@ When tests fail, the output includes:
 | "Unable to find an element with the text" | Text doesn't match or element hasn't rendered | Use regex (`/text/i`), or switch to `findByText` for async |
 | "Expected X to equal Y" | Mock data doesn't match expected shape | Update mock data or expected value |
 | "Timed out waiting for element" | Element loads async, using `getBy` instead of `findBy` | Switch to `await screenDom.findByRole(...)` |
-| "Request not intercepted" | Mock URL doesn't match actual request | Verify the string URL matches (matching is boundary-aware). For dynamic IDs, hardcode the mock value. Only use `urlRegex: true` as last resort |
+| "Request not intercepted" | Mock URL doesn't match actual request | Use `twd.getRequestCounts()` to check if the mock was hit at all. If count is 0, the URL or method isn't matching. Verify the string URL matches (boundary-aware). For dynamic IDs, hardcode the mock value. Only use `urlRegex: true` as last resort |
 | "Cannot read property of null" | Missing `await` on async method | Add `await` before `twd.get()`, `userEvent.*`, etc. |
 | "twd.mockRequest is not a function" | Service worker not initialized | Ensure `serviceWorker: true` in `initTWD` options |
 
 ## Debugging Tips
 
-- Use `it.only("test name", ...)` to isolate a single test
+- Use `npx twd-relay run --test "test name"` to isolate a single test
 - Add `await twd.wait(2000)` to pause and visually inspect the page
 - Check the browser console for JavaScript errors
 - Verify mock URLs match by reading the API/service layer code
+- **When `waitForRequest` times out**, use `twd.getRequestCounts()` to diagnose:
+  - Count is 0 → the mock URL or method isn't matching the actual request
+  - Count is > 0 → the mock matched but `waitForRequest` was called before/after the request fired
+  - `twd.getRequestCount("alias")` checks a single mock; `twd.getRequestCounts()` returns all as `{ alias: count, ... }`

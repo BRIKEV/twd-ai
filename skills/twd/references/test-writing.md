@@ -50,6 +50,10 @@ await twd.waitForRequest("labelName");
 
 > **Important**: `mockRequest` always needs `await`. The second argument uses `response` (NOT `body`). The signature is: `await twd.mockRequest("alias", { method, url, response, status?, headers?, responseHeaders?, delay?, urlRegex? })`. The `response` field accepts any value — objects, arrays, strings, `null`, etc.
 
+> **Debugging mock matches**: `twd.getRequestCount("alias")` returns how many times a mock was hit. `twd.getRequestCounts()` returns `{ alias: count, ... }` for all mocks. Use these when `waitForRequest` times out to check if the URL/method is matching. Counters reset with `twd.clearRequestMockRules()`.
+
+> **Cross-origin requests**: The mock service worker intercepts **all** requests made from the page, including cross-origin URLs (e.g., third-party APIs like payment providers or analytics services). You can mock any URL your frontend calls, regardless of domain.
+
 #### Full `mockRequest` Options
 
 ```typescript
@@ -576,13 +580,21 @@ await twd.mockRequest("serverError", {
 });
 
 // Wait for request and inspect body
+// IMPORTANT: rule.request IS the body — NOT rule.request.body
 const rule = await twd.waitForRequest("submitForm");
 expect(rule.request).to.deep.equal({ email: "test@example.com" });
 
 // Wait for multiple requests
 await twd.waitForRequests(["getUser", "getPosts"]);
 
-// Clear all mocks (always in beforeEach)
+// Check how many times a mock was hit (useful for debugging)
+expect(twd.getRequestCount("getUser")).to.equal(2);
+
+// Get hit counts for ALL mocks at once
+const counts = twd.getRequestCounts();
+// → { getUser: 2, getPosts: 1 }
+
+// Clear all mocks AND reset counters (always in beforeEach)
 twd.clearRequestMockRules();
 ```
 
@@ -741,7 +753,7 @@ describe("Items Page", () => {
       await user.click(screenDom.getByRole("button", { name: /save/i }));
       await twd.waitForRequest("createItem");
 
-      // Verify the POST body
+      // Verify the POST body (rule.request IS the body — NOT rule.request.body)
       const rule = await twd.waitForRequest("createItem");
       expect(rule.request).to.deep.equal({
         name: "New Item",
@@ -786,3 +798,5 @@ describe("Items Page", () => {
 14. **Mocking components AFTER visit** — call `twd.mockComponent()` BEFORE `twd.visit()`, same rule as `mockRequest`
 15. **Not resetting app state between tests** — TWD runs without page reloads, so store state, localStorage, and module singletons persist. Always reset in `beforeEach`
 16. **Using regex when string match suffices** — string matching is boundary-aware: `/api/users` won't match `/api/users/123` or `/api/items`. For dynamic IDs, hardcode the mock value (e.g., `url: "/api/users/456"`). Only use `urlRegex: true` when the segment is truly unpredictable at mock time
+17. **Using `rule.request.body` instead of `rule.request`** — `waitForRequest` returns a rule where `.request` IS the parsed body directly. Writing `rule.request.body.X` throws `Cannot read properties of undefined`. Correct: `expect(rule.request).to.deep.equal({ ... })`
+18. **Using `it.only()` to isolate tests** — use `npx twd-relay run --test "name"` instead, which doesn't require editing the test file and avoids the risk of forgetting to remove `it.only()`
