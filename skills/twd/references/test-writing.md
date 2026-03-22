@@ -50,6 +50,8 @@ await twd.waitForRequest("labelName");
 
 > **Important**: `mockRequest` always needs `await`. The second argument uses `response` (NOT `body`). The signature is: `await twd.mockRequest("alias", { method, url, response, status?, headers?, responseHeaders?, delay?, urlRegex? })`. The `response` field accepts any value — objects, arrays, strings, `null`, etc.
 
+> **Debugging mock matches**: `twd.getRequestCount("alias")` returns how many times a mock was hit. `twd.getRequestCounts()` returns `{ alias: count, ... }` for all mocks. Use these when `waitForRequest` times out to check if the URL/method is matching. Counters reset with `twd.clearRequestMockRules()`.
+
 #### Full `mockRequest` Options
 
 ```typescript
@@ -583,7 +585,14 @@ expect(rule.request).to.deep.equal({ email: "test@example.com" });
 // Wait for multiple requests
 await twd.waitForRequests(["getUser", "getPosts"]);
 
-// Clear all mocks (always in beforeEach)
+// Check how many times a mock was hit (useful for debugging)
+expect(twd.getRequestCount("getUser")).to.equal(2);
+
+// Get hit counts for ALL mocks at once
+const counts = twd.getRequestCounts();
+// → { getUser: 2, getPosts: 1 }
+
+// Clear all mocks AND reset counters (always in beforeEach)
 twd.clearRequestMockRules();
 ```
 
