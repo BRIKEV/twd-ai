@@ -27,6 +27,7 @@ These rules override everything else. If any rule conflicts with instructions be
 5. **Always `await` async methods.** `twd.visit()`, `twd.get()`, `userEvent.*`, `screenDom.findBy*`, `twd.waitForRequest()`, `twd.mockRequest()`.
 6. **Imports from TWD only.** `describe`/`it`/`beforeEach` from `twd-js/runner`, `expect` from `twd-js` — never from Jest, Mocha, or Vitest. `expect` is **Chai-style**: use `.to.equal()`, `.to.have.length()`, `.to.deep.equal()`, `.to.be.true` — **NEVER** Jest-style `.toBe()`, `.toHaveLength()`, `.toEqual()`, `.toBeTruthy()`.
 7. **`mockRequest` uses alias + config object.** Signature: `await twd.mockRequest("alias", { method, url, response, status?, headers?, responseHeaders?, delay?, urlRegex? })`. NEVER use positional arguments. The config key is `response` (NOT `body`). `response` accepts any value (objects, arrays, strings, `null`). ALWAYS `await` the call. `url` uses boundary-aware string matching by default — prefer string URLs, use `urlRegex: true` only as last resort.
+8. **`rule.request` IS the body — NEVER use `rule.request.body`.** `await twd.waitForRequest("alias")` returns a rule where `rule.request` contains the parsed request body directly. Writing `rule.request.body.X` will throw `Cannot read properties of undefined`. Correct: `expect(rule.request).to.deep.equal({ ... })`.
 
 ---
 

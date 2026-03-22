@@ -576,6 +576,7 @@ await twd.mockRequest("serverError", {
 });
 
 // Wait for request and inspect body
+// IMPORTANT: rule.request IS the body — NOT rule.request.body
 const rule = await twd.waitForRequest("submitForm");
 expect(rule.request).to.deep.equal({ email: "test@example.com" });
 
@@ -741,7 +742,7 @@ describe("Items Page", () => {
       await user.click(screenDom.getByRole("button", { name: /save/i }));
       await twd.waitForRequest("createItem");
 
-      // Verify the POST body
+      // Verify the POST body (rule.request IS the body — NOT rule.request.body)
       const rule = await twd.waitForRequest("createItem");
       expect(rule.request).to.deep.equal({
         name: "New Item",
@@ -786,3 +787,4 @@ describe("Items Page", () => {
 14. **Mocking components AFTER visit** — call `twd.mockComponent()` BEFORE `twd.visit()`, same rule as `mockRequest`
 15. **Not resetting app state between tests** — TWD runs without page reloads, so store state, localStorage, and module singletons persist. Always reset in `beforeEach`
 16. **Using regex when string match suffices** — string matching is boundary-aware: `/api/users` won't match `/api/users/123` or `/api/items`. For dynamic IDs, hardcode the mock value (e.g., `url: "/api/users/456"`). Only use `urlRegex: true` when the segment is truly unpredictable at mock time
+17. **Using `rule.request.body` instead of `rule.request`** — `waitForRequest` returns a rule where `.request` IS the parsed body directly. Writing `rule.request.body.X` throws `Cannot read properties of undefined`. Correct: `expect(rule.request).to.deep.equal({ ... })`
