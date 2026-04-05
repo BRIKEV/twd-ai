@@ -126,6 +126,67 @@ export default defineConfig({
 
 ## GitHub Actions Workflows
 
+### GitHub Action — Recommended
+
+The `BRIKEV/twd-cli` composite action handles Puppeteer caching and Chrome installation automatically:
+
+```yaml
+name: TWD Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install mock service worker
+        run: npx twd-js init public --save
+
+      - name: Start dev server
+        run: |
+          nohup npm run dev > /dev/null 2>&1 &
+          npx wait-on http://localhost:5173
+
+      - name: Run TWD tests
+        uses: BRIKEV/twd-cli/.github/actions/run@main
+```
+
+With coverage, use `dev:ci` and add the coverage step:
+
+```yaml
+      - name: Start dev server
+        run: |
+          nohup npm run dev:ci > /dev/null 2>&1 &
+          npx wait-on http://localhost:5173
+        env:
+          CI: true
+
+      - name: Run TWD tests
+        uses: BRIKEV/twd-cli/.github/actions/run@main
+
+      - name: Display coverage
+        run: npm run collect:coverage:text
+```
+
+### Custom Workflows (Full Control)
+
+Use these if you need full control over each step or aren't using GitHub Actions.
+
 ### Basic Workflow (No Coverage)
 
 ```yaml

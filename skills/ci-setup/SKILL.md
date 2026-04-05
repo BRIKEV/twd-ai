@@ -26,13 +26,15 @@ Read these files in parallel to understand the current setup:
 3. **`.claude/twd-patterns.md`** — detect:
    - Framework, port, base path from existing config
 4. **`twd.config.json`** — check if it already exists
-5. **Glob `.github/workflows/*.yml`** — check for existing workflows
+5. **Glob `.github/workflows/*.yml` AND `.github/workflows/*.yaml`** — check for existing workflows (GitHub Actions supports both extensions)
 
 ## Step 2: Report Findings and Ask About Coverage
 
-Report what you detected, then ask the user:
+Report what you detected, then ask the user.
 
-### If Vite is detected:
+**If the user's request already specifies coverage** (e.g., "set up CI with istanbul coverage", "I want coverage"), skip the coverage question and proceed as if they said "Yes".
+
+### If Vite is detected (and coverage not already specified):
 
 > I detected [framework] with Vite on port [port].
 >
@@ -149,17 +151,80 @@ istanbul({
 
 ## Step 7: Generate GitHub Actions Workflow
 
-Create `.github/workflows/twd-tests.yml` using the appropriate template from `skills/twd/references/ci.md`:
+Ask the user which approach they prefer:
+
+> **How do you want to run TWD tests in CI?**
+> - **GitHub Action (recommended)** — uses the `BRIKEV/twd-cli` composite action, handles Puppeteer caching and Chrome installation automatically
+> - **Custom setup** — full manual steps for complete control (or non-GitHub CI)
+
+Create the `.github/workflows/` directory if it doesn't exist, then create `twd-tests.yml`.
+
+### Option A: GitHub Action (Recommended)
+
+```yaml
+name: TWD Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install mock service worker
+        run: npx twd-js init public --save
+
+      - name: Start dev server
+        run: |
+          nohup npm run dev > /dev/null 2>&1 &
+          npx wait-on http://localhost:5173
+
+      - name: Run TWD tests
+        uses: BRIKEV/twd-cli/.github/actions/run@main
+```
+
+If coverage was requested, use `dev:ci` instead of `dev`, add `CI: true` env to the dev server step, and add the coverage step after the test step:
+
+```yaml
+      - name: Start dev server
+        run: |
+          nohup npm run dev:ci > /dev/null 2>&1 &
+          npx wait-on http://localhost:5173
+        env:
+          CI: true
+
+      - name: Run TWD tests
+        uses: BRIKEV/twd-cli/.github/actions/run@main
+
+      - name: Display coverage
+        run: npm run collect:coverage:text
+```
+
+### Option B: Custom Setup
+
+Use the appropriate template from `skills/twd/references/ci.md`:
 
 - **Without coverage**: Use the "Basic Workflow" template
 - **With coverage**: Use the "Workflow with Coverage" template
 
-**Customize the template:**
+**Customize both options:**
 - Set the correct port in the `wait-on` URL
 - If base path is not `/`, append it to the `wait-on` URL
 - Use `dev:ci` for the server command if coverage is enabled, `dev` otherwise
-
-Create the `.github/workflows/` directory if it doesn't exist.
 
 ## Output
 
