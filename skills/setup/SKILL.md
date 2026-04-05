@@ -120,10 +120,10 @@ await twd.visit("BASE_PATHsome-page");
 beforeEach(() => {
   twd.clearRequestMockRules();
   twd.clearComponentMocks();
-  Sinon.restore();
-  // STORE_RESET (if applicable — e.g., useStore.setState(initialState), store.$reset())
-  // AUTH_SETUP (if applicable)
-  // THIRD_PARTY_STUBS (if applicable — e.g., Sinon.stub(authModule, 'useAuth').returns(...))
+  // SINON_RESTORE (only if third-party modules need stubbing — Sinon.restore())
+  // STORE_RESET (only if state management detected — e.g., useStore.setState(initialState), store.$reset())
+  // AUTH_SETUP (only if auth middleware detected)
+  // THIRD_PARTY_STUBS (only if third-party modules detected — e.g., Sinon.stub(authModule, 'useAuth').returns(...))
 });
 
 afterEach(() => {
@@ -185,6 +185,7 @@ const modal = screenDomGlobal.getByRole("dialog");
 - Omit the `STORE_RESET` comment in beforeEach if no state management library
 - Omit the `AUTH_SETUP` comment in beforeEach if no auth middleware
 - Omit the `THIRD_PARTY_STUBS` comment in beforeEach if no third-party modules
+- Omit `Sinon.restore()` in beforeEach if no third-party modules need stubbing — Sinon is ONLY needed when the user has external modules to stub
 
 ## Step 4: Optionally Run Setup
 
@@ -231,7 +232,31 @@ plugins: [
 ]
 ```
 
-6. Write a first test file
+6. Write a **scaffold-only** first test file at `src/twd-tests/hello.twd.test.ts` (create the `src/twd-tests/` directory if needed). The file must contain **only empty `it` blocks** — this is a setup skill, NOT a test-writing skill. Do NOT invent assertions, selectors, or page content. Do NOT add Sinon unless the user explicitly configured third-party modules that need stubbing. Use the beforeEach/afterEach from the generated `twd-patterns.md`.
+
+   Example scaffold:
+
+   ```typescript
+   import { twd, userEvent, screenDom, expect } from "twd-js";
+   import { describe, it, beforeEach, afterEach } from "twd-js/runner";
+
+   describe("App Smoke Test", () => {
+     beforeEach(() => {
+       twd.clearRequestMockRules();
+       twd.clearComponentMocks();
+     });
+
+     afterEach(() => {
+       twd.clearRequestMockRules();
+     });
+
+     it("renders the home page", async () => {
+       // Use the /twd skill to write actual test content
+     });
+   });
+   ```
+
+   > **Rules for this scaffold**: Only include `Sinon.restore()` in beforeEach if third-party modules were configured. Only include store reset if state management was configured. The `it` blocks must be empty with a comment pointing to the `/twd` skill. If the user specified a different test location, use that instead of `src/twd-tests/`.
 
 Only run steps the user approves. Show what each step does before executing.
 
