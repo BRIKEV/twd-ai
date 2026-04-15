@@ -486,8 +486,8 @@ await twd.waitFor(() => screenDom.getByText("Item One")); // unnecessary
 
 ```typescript
 // DON'T do this — userEvent.type retries on each throw, typing again and again
-await twd.waitFor(() => {
-  await userEvent.type(input, "hello");
+await twd.waitFor(async () => {
+  await userEvent.type(input, "hello");  // types again on every retry!
   expect(input).to.have.value("hello");
 });
 ```
@@ -839,7 +839,7 @@ describe("Items Page", () => {
 
 ### Common Mistakes to AVOID
 
-1. **Forgetting `await`** on `twd.get()`, `userEvent.*`, `twd.visit()`, `screenDom.findBy*`, **`twd.mockRequest()`**
+1. **Forgetting `await`** on `twd.get()`, `userEvent.*`, `twd.visit()`, `screenDom.findBy*`, `twd.waitFor()`, **`twd.mockRequest()`**
 2. **Mocking AFTER visit** — always mock before `twd.visit()`
 3. **Not clearing mocks** — always `twd.clearRequestMockRules()` and `twd.clearComponentMocks()` in `beforeEach`
 4. **Using Node.js APIs** — tests run in the browser, no `fs`, `path`, etc.
