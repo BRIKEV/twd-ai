@@ -1,6 +1,6 @@
 {
   "name": "twd",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "TWD (Test While Developing) — deterministic in-browser testing plugin for Claude Code. Writes, runs, and fixes component/page-level browser tests for SPAs.",
   "author": {
     "name": "BRIKEV",

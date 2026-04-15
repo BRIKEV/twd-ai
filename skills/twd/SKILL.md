@@ -23,7 +23,7 @@ These rules override everything else. If any rule conflicts with instructions be
 1. **ONE top-level `describe()` per file.** Nest sub-scenarios with inner `describe()` blocks. Multiple top-level describes break the test runner.
 2. **Use `--test "name"` to isolate failing tests.** Never re-run the full suite to verify a single fix. Use `npx twd-relay run --test "failing test name"`. For multiple tests: `--test "one" --test "two"`. Matching is substring and case-insensitive.
 3. **Mock BEFORE visit.** Always set up `twd.mockRequest()` before `twd.visit()`.
-4. **Always `await` async methods.** `twd.visit()`, `twd.get()`, `userEvent.*`, `screenDom.findBy*`, `twd.waitForRequest()`, `twd.mockRequest()`.
+4. **Always `await` async methods.** `twd.visit()`, `twd.get()`, `userEvent.*`, `screenDom.findBy*`, `twd.waitForRequest()`, `twd.waitFor()`, `twd.mockRequest()`.
 5. **Imports from TWD only.** `describe`/`it`/`beforeEach` from `twd-js/runner`, `expect` from `twd-js` — never from Jest, Mocha, or Vitest. `expect` is **Chai-style**: use `.to.equal()`, `.to.have.length()`, `.to.deep.equal()`, `.to.be.true` — **NEVER** Jest-style `.toBe()`, `.toHaveLength()`, `.toEqual()`, `.toBeTruthy()`.
 6. **`mockRequest` uses alias + config object.** Signature: `await twd.mockRequest("alias", { method, url, response, status?, headers?, responseHeaders?, delay?, urlRegex? })`. NEVER use positional arguments. The config key is `response` (NOT `body`). `response` accepts any value (objects, arrays, strings, `null`). ALWAYS `await` the call. `url` uses boundary-aware string matching by default — prefer string URLs, use `urlRegex: true` only as last resort.
 7. **`rule.request` IS the body — NEVER use `rule.request.body`.** `await twd.waitForRequest("alias")` returns a rule where `rule.request` contains the parsed request body directly. Writing `rule.request.body.X` will throw `Cannot read properties of undefined`. Correct: `expect(rule.request).to.deep.equal({ ... })`.
@@ -218,6 +218,7 @@ npx twd-relay run
 | "Timed out waiting for element" | Element loads async, using `getBy` instead of `findBy` | Switch to `await screenDom.findByRole(...)` |
 | "Request not intercepted" | Mock URL doesn't match actual request | Verify the string URL matches (matching is boundary-aware). For dynamic IDs, hardcode the mock value. Only use `urlRegex: true` as last resort |
 | "Cannot read property of null" | Missing `await` on async method | Add `await` before `twd.get()`, `userEvent.*`, etc. |
+| Element exists but assertion fails intermittently | Race condition — DOM present but state hasn't re-rendered | Wrap the failing check in `await twd.waitFor(() => ...)` — the callback can contain an assertion (`expect(...)`) or element lookup (`screenDom.getByRole(...)`) that throws when the condition isn't met yet. Returns the callback's value so you can use it afterward. Do NOT add `waitFor` preemptively — only when a test fails due to timing. See `test-writing.md` "waitFor vs twd.wait" |
 
 ### Phase 5: Report
 
