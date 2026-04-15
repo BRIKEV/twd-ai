@@ -326,6 +326,7 @@ await userEvent.type(input, "text");
 await screenDom.findByRole("button");
 await twd.mockRequest("alias", { method, url, response, status });
 await twd.waitForRequest("label");
+await twd.waitFor(() => expect(el).to.have.attribute("disabled"));
 await twd.notExists(".spinner");
 ```
 
