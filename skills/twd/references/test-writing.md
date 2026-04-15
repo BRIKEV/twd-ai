@@ -442,6 +442,59 @@ await twd.notExists(".loading-spinner");       // Wait for element to NOT exist
 
 > **Note**: `twd.visit()` uses the History API — it does NOT reload the page. See "State Management & Test Isolation" below for implications.
 
+### waitFor vs twd.wait
+
+| Aspect | `twd.waitFor(fn)` | `twd.wait(ms)` |
+|--------|-------------------|----------------|
+| Resolves when | Callback stops throwing | Fixed time elapses |
+| Speed | As fast as the condition is met | Always waits full duration |
+| Reliability | Adapts to timing variations | Fails if operation is slower |
+| Use for | Race conditions — element exists but state isn't ready yet | Intentional delays (animations, debounce testing) |
+
+**Do NOT add `waitFor` to every assertion.** Most TWD assertions work synchronously after `waitForRequest` or `findBy*` resolves. Only reach for `waitFor` when a test **fails** because of a genuine timing issue — the element is in the DOM but its state hasn't updated yet, or the element isn't in the DOM yet after a state change.
+
+`waitFor` is generic — it returns the callback's resolved value, so you can extract a value and assert on it afterward. Keep one condition per callback. Do NOT put actions (like `userEvent.type`) inside — the callback retries from the top on each throw, causing side effects. A guard assertion + return value in the same callback is fine because both are reads.
+
+**Good — targeted retry after a failure (return value pattern):**
+
+```typescript
+// Test failed: heading not in DOM yet after navigation → wrap in waitFor
+const heading = await twd.waitFor(() => screenDom.getByRole("heading", { name: /dashboard/i }));
+twd.should(heading, "be.visible");
+```
+
+**Good — retry until a value exists, then assert on its properties:**
+
+```typescript
+const event = await twd.waitFor(() => {
+  const ev = findEvent("purchase");
+  expect(ev).to.exist;
+  return ev;
+});
+expect(event.customer_type).to.equal("b2c");
+```
+
+**Bad — wrapping everything "just in case":**
+
+```typescript
+// DON'T do this — waitForRequest already ensures data loaded
+await twd.waitForRequest("getItems");
+await twd.waitFor(() => screenDom.getByText("Item One")); // unnecessary
+```
+
+**Bad — putting actions inside the callback:**
+
+```typescript
+// DON'T do this — userEvent.type retries on each throw, typing again and again
+await twd.waitFor(() => {
+  await userEvent.type(input, "hello");
+  expect(input).to.have.value("hello");
+});
+```
+
+Full API reference: https://twd.dev/api/twd-commands.html#twd-waitfor-callback-options
+Best practice guide: https://twd.dev/api/twd-commands.html#waitfor-vs-twd-wait
+
 ### State Management & Test Isolation
 
 TWD runs tests directly in the browser **without page reloads**. The `twd.visit()` command simulates SPA navigation using the History API, which means your SPA router re-renders but **in-memory application state is preserved** between tests.
