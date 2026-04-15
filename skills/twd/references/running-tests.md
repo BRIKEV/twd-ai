@@ -75,11 +75,13 @@ When tests fail, the output includes:
 | "Request not intercepted" | Mock URL doesn't match actual request | Use `twd.getRequestCounts()` to check if the mock was hit at all. If count is 0, the URL or method isn't matching. Verify the string URL matches (boundary-aware). For dynamic IDs, hardcode the mock value. Only use `urlRegex: true` as last resort |
 | "Cannot read property of null" | Missing `await` on async method | Add `await` before `twd.get()`, `userEvent.*`, etc. |
 | "twd.mockRequest is not a function" | Service worker not initialized | Ensure `serviceWorker: true` in `initTWD` options |
+| Assertion fails intermittently (element found but wrong attribute/text/state) | Race condition — render hasn't completed yet | Wrap in `await twd.waitFor(() => ...)` with the failing assertion or selector. See `test-writing.md` "waitFor vs twd.wait" for guidance |
 
 ## Debugging Tips
 
 - Use `npx twd-relay run --test "test name"` to isolate a single test
 - Add `await twd.wait(2000)` to pause and visually inspect the page
+- If a test fails intermittently due to timing, use `await twd.waitFor(() => ...)` to retry until the condition is met — don't replace it with a blind `twd.wait(ms)`
 - Check the browser console for JavaScript errors
 - Verify mock URLs match by reading the API/service layer code
 - **When `waitForRequest` times out**, use `twd.getRequestCounts()` to diagnose:
