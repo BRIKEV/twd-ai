@@ -433,6 +433,9 @@ expect(obj).to.deep.equal({ key: "value" });
 await twd.visit("/");
 await twd.visit("/login");
 await twd.wait(1000);                         // Wait for time (ms)
+await twd.waitFor(() =>                       // Retry callback until it stops throwing
+  screenDom.getByRole("heading", { name: /dashboard/i })
+, { timeout: 2000, interval: 50, message: "heading to appear" });
 await screenDom.findByText("Success!");        // Wait for element
 await twd.notExists(".loading-spinner");       // Wait for element to NOT exist
 ```
