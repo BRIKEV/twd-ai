@@ -168,3 +168,5 @@ npx twd-relay run --port PORT --path "BASE/__twd/ws"
 ```
 
 If exit code is 0 and the test passes, setup is complete.
+
+> When the browser connects, the tab's favicon turns blue and the title gains a `[TWD]` prefix. If the user has multiple tabs open to the same origin, this is how you identify which tab is the TWD tab.
