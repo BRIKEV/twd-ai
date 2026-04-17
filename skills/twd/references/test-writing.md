@@ -6,7 +6,7 @@ TWD (Test While Developing) is a **deterministic, in-browser testing tool** that
 
 ## Quick Reference
 
-Everything you need for most tests. Only read past this section if you need component mocking, Sinon stubbing, or advanced patterns.
+Everything you need for most tests. The Detailed API Reference below covers the full surface area — consult it when you need more than the basics.
 
 ### Imports
 
@@ -657,31 +657,7 @@ twd.clearRequestMockRules();
 
 ### Component Mocking
 
-> **Mock before visit**: Call `twd.mockComponent()` BEFORE `twd.visit()`, just like `mockRequest`. Use `.twd.test.tsx` extension when writing JSX in mock implementations.
-
-```tsx
-// In your component — wrap with MockedComponent
-import { MockedComponent } from "twd-js/ui";
-
-function Dashboard() {
-  return (
-    <MockedComponent name="ExpensiveChart">
-      <ExpensiveChart data={data} />
-    </MockedComponent>
-  );
-}
-```
-
-```tsx
-// In your test — mock BEFORE twd.visit()
-twd.mockComponent("ExpensiveChart", () => (
-  <div data-testid="mock-chart">Mocked Chart</div>
-));
-await twd.visit("/dashboard");
-
-// Clear in beforeEach (already included in standard beforeEach)
-twd.clearComponentMocks();
-```
+For component mocking with `MockedComponent` — including replacing third-party SDKs, passing callbacks through mocks, and the refactor-for-testability pattern — read `references/test-advanced.md`.
 
 ### Module Stubbing with Sinon
 
@@ -740,102 +716,6 @@ await twd.visit("/");
 ```
 
 This works for any third-party provider (feature flags, analytics, auth). It avoids hook-count mismatches and complex provider mocking — you test your app's behavior, not the library's internals.
-
-### Extended CRUD Template
-
-A complete flow-based test covering list → create → edit → delete:
-
-```typescript
-import { twd, userEvent, screenDom, expect } from "twd-js";
-import { describe, it, beforeEach } from "twd-js/runner";
-
-const mockItems = [
-  { id: 1, name: "Item One", email: "one@test.com" },
-  { id: 2, name: "Item Two", email: "two@test.com" },
-];
-
-describe("Items Page", () => {
-  beforeEach(() => {
-    twd.clearRequestMockRules();
-    twd.clearComponentMocks();
-    // Reset app state if needed — see "State Management & Test Isolation" below
-  });
-
-  describe("listing", () => {
-    it("should display all items in the table", async () => {
-      await twd.mockRequest("getItems", {
-        method: "GET",
-        url: "/api/items",
-        response: mockItems,
-        status: 200,
-      });
-
-      await twd.visit("/items");
-      await twd.waitForRequest("getItems");
-
-      const rows = screenDom.getAllByRole("row");
-      // +1 for header row
-      expect(rows).to.have.length(mockItems.length + 1);
-      twd.should(screenDom.getByText("Item One"), "be.visible");
-    });
-  });
-
-  describe("create flow", () => {
-    it("should open form, fill fields, and submit", async () => {
-      await twd.mockRequest("getItems", {
-        method: "GET",
-        url: "/api/items",
-        response: mockItems,
-        status: 200,
-      });
-      await twd.mockRequest("createItem", {
-        method: "POST",
-        url: "/api/items",
-        response: { id: 3, name: "New Item", email: "new@test.com" },
-        status: 201,
-      });
-
-      await twd.visit("/items");
-      await twd.waitForRequest("getItems");
-
-      // Open the create form
-      const user = userEvent.setup();
-      await user.click(screenDom.getByRole("button", { name: /add/i }));
-
-      // Fill the form
-      await user.type(screenDom.getByLabelText(/name/i), "New Item");
-      await user.type(screenDom.getByLabelText(/email/i), "new@test.com");
-
-      // Submit
-      await user.click(screenDom.getByRole("button", { name: /save/i }));
-      await twd.waitForRequest("createItem");
-
-      // Verify the POST body (rule.request IS the body — NOT rule.request.body)
-      const rule = await twd.waitForRequest("createItem");
-      expect(rule.request).to.deep.equal({
-        name: "New Item",
-        email: "new@test.com",
-      });
-    });
-  });
-
-  describe("error states", () => {
-    it("should show error message on server failure", async () => {
-      await twd.mockRequest("getItems", {
-        method: "GET",
-        url: "/api/items",
-        response: { error: "Internal Server Error" },
-        status: 500,
-      });
-
-      await twd.visit("/items");
-      await twd.waitForRequest("getItems");
-
-      twd.should(screenDom.getByText(/error/i), "be.visible");
-    });
-  });
-});
-```
 
 ### Common Mistakes to AVOID
 
