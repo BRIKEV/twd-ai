@@ -33,9 +33,6 @@ twd.mockComponent("HeavyChart", () => (
   <div data-testid="mock-chart">Mocked Chart</div>
 ));
 await twd.visit("/dashboard");
-
-// Clear in beforeEach (already part of the standard beforeEach)
-twd.clearComponentMocks();
 ```
 
 This example replaces a heavy component with static HTML. That works when the component doesn't communicate back to the parent. For components that DO communicate (callbacks, refs), see Section 2.
