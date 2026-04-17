@@ -76,6 +76,19 @@ When tests fail, the output includes:
 | "Cannot read property of null" | Missing `await` on async method | Add `await` before `twd.get()`, `userEvent.*`, etc. |
 | "twd.mockRequest is not a function" | Service worker not initialized | Ensure `serviceWorker: true` in `initTWD` options |
 | Assertion fails intermittently (element found but wrong attribute/text/state) | Race condition — render hasn't completed yet | Wrap in `await twd.waitFor(() => ...)` with the failing assertion or selector. See `test-writing.md` "waitFor vs twd.wait" for guidance |
+| `Run aborted: test "…" ran for Xs — threshold exceeded` | Browser tab is backgrounded/minimized → Chrome is throttling timers → tests run 5–30× slower than normal | Foreground the TWD tab (identified by the `[TWD …]` title prefix) and rerun. For unattended runs, switch to `npx twd-cli run` which uses a headless browser not subject to tab throttling. Raise the threshold with `twd-relay run --max-test-duration 15000` if a test legitimately needs longer. |
+| `[RUN_IN_PROGRESS] A test run is already in progress…` | Previous run still locked on the relay. Usually the TWD tab was backgrounded during the prior run and is still slowly completing it. | Foreground the TWD tab (identified by the `[TWD …]` title prefix) to speed completion. The relay auto-clears the lock after 120 s of heartbeat silence, or reload the TWD tab to force-reset. Don't kill/restart the relay — it won't help. |
+
+## Recovery from Aborted or Stuck Runs
+
+Chrome throttles timers in backgrounded tabs, which can stretch a ~1 s test run to 20+ seconds. To avoid hangs, the browser client aborts any run where a single test exceeds **5 seconds** by default (configurable via `--max-test-duration <ms>`). When this fires, the CLI prints `Run aborted: …` and exits 1.
+
+**When you see `run:aborted` or a stuck `RUN_IN_PROGRESS`:**
+
+- Tell the user to foreground the TWD browser tab. The tab's title is prefixed with `[TWD]` when the relay is connected, which helps them identify it among other tabs to the same origin.
+- If the user needs unattended/CI execution, recommend `npx twd-cli run` — it uses a headless Chrome where tab throttling doesn't apply.
+- Don't retry in a loop. The root cause is the tab losing focus; a retry without user action will abort again.
+- Don't kill/restart the relay. The lock auto-clears after 120 s of heartbeat silence, or the user can reload the tab.
 
 ## Debugging Tips
 
