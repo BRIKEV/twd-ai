@@ -284,6 +284,7 @@ After generating the config file, check if TWD is already installed. If not, ask
    ```typescript
    import { twd } from 'twd-js/vite-plugin';
    import { twdRemote } from 'twd-relay/vite';
+   import type { PluginOption } from 'vite';
 
    // Add to plugins array (preserve existing plugin order; insert at the end):
    plugins: [
@@ -295,7 +296,7 @@ After generating the config file, check if TWD is already installed. If not, ask
        // serviceWorker / serviceWorkerUrl defaults work; pass user overrides here.
        // Other options the user wants (search, theme, rootSelector) go here too.
      }),
-     twdRemote(),
+     twdRemote() as PluginOption,
    ]
    ```
 

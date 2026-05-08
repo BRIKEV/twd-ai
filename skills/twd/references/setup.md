@@ -72,6 +72,7 @@ if (isDevMode()) {
 // vite.config.ts
 import { twd } from 'twd-js/vite-plugin';
 import { twdRemote } from 'twd-relay/vite';
+import type { PluginOption } from 'vite';
 
 export default defineConfig({
   plugins: [
@@ -81,10 +82,12 @@ export default defineConfig({
       open: true,
       position: 'left',
     }),
-    twdRemote(),
+    twdRemote() as PluginOption,
   ],
 });
 ```
+
+> **Note:** the `as PluginOption` cast and the `import type { PluginOption } from 'vite'` are kept for compatibility with older Vite versions whose plugin-array type is stricter. Newer Vite versions accept `twdRemote()` directly, but keeping the cast is harmless.
 
 `twd()` (from `twd-js@1.8.0+`) auto-discovers test files, mounts the sidebar via a virtual module + injected `<script>` tag, and respects Vite `base` for both the script src and the default `serviceWorkerUrl`. The old `twdHmr()` plugin is no longer needed — full-reload on test-file edits is built in.
 
