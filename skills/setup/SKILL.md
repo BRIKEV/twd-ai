@@ -215,27 +215,22 @@ After generating the config file, check if TWD is already installed. If not, ask
 3. `npx twd-js init PUBLIC_DIR --save`
 4. Configure entry point — **insert this DEV block BEFORE the existing app mount code** (before `createRoot`, `createApp`, etc.). The block to insert depends on `isVite`.
 
-   **Before modifying the entry file, search it for an existing `initTWD(` call.** If one is found, the project already has the old manual boilerplate. Ask the user via `AskUserQuestion`:
+   **Before modifying the entry file, search it for any existing `initTWD(` OR `createBrowserClient(` call.** If either is found, the project already has manual boilerplate from a previous setup. Ask the user via `AskUserQuestion`:
 
-   > Existing manual TWD setup detected in your entry file. Remove it and use the new `twd()` Vite plugin instead?
+   > Existing manual TWD setup detected in your entry file (`initTWD` and/or `createBrowserClient`). Remove it now and rely on the `twd()` + `twdRemote()` Vite plugins?
 
-   If the user agrees (Vite path), delete the old `initTWD(...)` block and replace it with the relay-only block below; otherwise leave the entry file alone and skip to sub-step 5.
+   If the user agrees (Vite path), delete the old block(s) entirely — both `initTWD(...)` and `createBrowserClient(...)` go away; the entry file ends up with no TWD-specific code at all (see Branch A below). If the user declines, leave the entry file alone and surface this warning in the post-setup summary:
+
+   > You've kept the manual `createBrowserClient` block. With `twd-relay`'s auto-connect plugin enabled, two browser clients will connect (you'll see a duplicate browser in the relay logs). Set `autoConnect: false` on `twdRemote()` if you want to keep the manual block.
 
    #### Branch A — Vite project (`isVite = true`, preferred path)
 
-   The `twd()` Vite plugin (added in sub-step 5) auto-mounts the TWD sidebar via a virtual module + injected `<script type="module">` tag. The entry file therefore only needs the `twd-relay` browser client (the relay does NOT have a plugin equivalent yet):
+   On the Vite path, **do not modify the entry file.** Both pieces are now plugins:
 
-   ```typescript
-   // src/main.{ts,tsx} — Vite path
-   if (import.meta.env.DEV) {
-     // twd-relay browser client (twd-js sidebar is auto-mounted by the twd() Vite plugin)
-     const { createBrowserClient } = await import('twd-relay/browser');
-     const client = createBrowserClient();
-     client.connect();
-   }
-   ```
+   - `twd()` (sub-step 5) auto-mounts the sidebar via a virtual module + injected `<script type="module">` tag.
+   - `twdRemote()` (sub-step 5) defaults to `autoConnect: true` and auto-injects a `<script>` that calls `createBrowserClient(...).connect()` against the resolved relay URL (`base + '/__twd/ws'`).
 
-   `createBrowserClient()` with no args auto-detects the URL when `twdRemote()` is registered as a Vite plugin (added in sub-step 5). No manual base-path adjustment needed.
+   So `main.{ts,tsx}` ends up with **zero** TWD-specific code on the Vite path — no `initTWD(...)`, no `createBrowserClient(...)`. If the existing entry file already contains either, the duplicate-setup detection above offers to delete it.
 
    #### Branch B — non-Vite project (`isVite = false`)
 
@@ -306,6 +301,8 @@ After generating the config file, check if TWD is already installed. If not, ask
    ```
 
    `twd()` auto-discovers test files (`import.meta.glob`-based), injects the sidebar `<script>` into `index.html`, and respects Vite `base` for both the script src and the default `serviceWorkerUrl`. It only runs in `vite dev` (`apply: 'serve'`); production builds are unaffected. The old `twdHmr()` plugin is **no longer needed** — full-reload on test-file edits is built into `twd()`.
+
+   `twdRemote()` defaults to `autoConnect: true`, so it injects a `<script>` tag that connects the browser client to the relay — no entry-file snippet needed. The plugin resolves both the relay-server path and the injected client path from the same formula (`options.path ?? base + '/__twd/ws'`), so they cannot drift on a non-default `base`. Pass `autoConnect: false` if you want to wire `createBrowserClient` manually (rare; only useful if you need to subscribe to client events). You can also forward client options: `twdRemote({ autoConnect: { reconnect: false, log: true } })`.
 
    #### `testFilePattern` defaults by framework
 

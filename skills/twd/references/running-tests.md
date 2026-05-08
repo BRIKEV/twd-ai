@@ -53,7 +53,7 @@ Before running `npx twd-relay run`, **ALL** of the following must be true:
 2. **The app MUST be open in a browser tab** — navigate to `http://localhost:PORT` (e.g., `http://localhost:5173`). TWD tests execute inside the browser — if no tab is open, the relay cannot dispatch tests.
 3. **`twd-relay` is installed** — `npm install --save-dev twd-relay`
 4. **`twdRemote()` plugin is in `vite.config.ts`** — see setup reference
-5. **Browser relay client is connected** — the entry point must include the `createBrowserClient` block (see setup reference Step 3)
+5. **Browser relay client is connected** — for **Vite projects**, this happens automatically when `twdRemote()` is in `vite.config.ts` (it injects a connect script via `transformIndexHtml`). For **non-Vite projects** (Angular CLI, Webpack/CRA, etc.), the entry point must still include the manual `createBrowserClient` block (see setup reference Step 3, Angular path). If a Vite project also has a manual `createBrowserClient` block in the entry file, you'll see **two clients** in the relay logs — fix by deleting the manual block or passing `autoConnect: false` to `twdRemote()`.
 
 > **If the relay exits immediately or times out**, the #1 cause is that the dev server is not running or the browser tab is not open. Always check these first.
 

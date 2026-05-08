@@ -21,63 +21,27 @@ This copies `mock-sw.js` to the `public/` directory. If the public directory has
 
 ## Step 3: Configure Entry Point
 
-TWD should only load in development mode. **Insert the DEV block BEFORE the existing app mount code** (e.g., before `createRoot`, `createApp`, `bootstrapApplication`). Read the existing entry point first and preserve all existing code — only add the TWD block above it.
+The entry-file requirement now depends on whether the project uses Vite. The Vite path needs **no entry-file code at all** — both the sidebar and the relay client are wired up by Vite plugins (Step 4). Non-Vite projects (Angular CLI, Webpack/CRA, Rollup, esbuild, Rspack) keep the manual `initTWD` + `createBrowserClient` block in dev-only mode.
 
-### Bundled Setup (Recommended — all frameworks)
+### Vite (Recommended — Bundled, React, Vue, Solid, anything Vite-based)
 
 ```typescript
-// src/main.ts (or main.tsx)
-if (import.meta.env.DEV) {
-  const { initTWD } = await import('twd-js/bundled');
-  const tests = import.meta.glob("./**/*.twd.test.ts");
-
-  initTWD(tests, {
-    open: true,
-    position: 'left',
-    serviceWorker: true,
-    serviceWorkerUrl: '/mock-sw.js',
-  });
-
-  // Connect twd-relay browser client
-  const { createBrowserClient } = await import('twd-relay/browser');
-  const client = createBrowserClient({ url: `${window.location.origin}/__twd/ws` });
-  client.connect();
-}
+// src/main.{ts,tsx} — Vite path
+// No TWD-specific code needed in this file.
+// Both twd() (sidebar) and twdRemote() (relay browser client)
+// are configured in vite.config.ts (see Step 4).
 ```
 
-**initTWD options:**
-- `open` (boolean) — sidebar open by default. Default: `true`
-- `position` (`"left"` | `"right"`) — sidebar position. Default: `"left"`
-- `serviceWorker` (boolean) — enable API mocking. Default: `true`
-- `serviceWorkerUrl` (string) — service worker path. Default: `'/mock-sw.js'`
+The `twd()` plugin auto-mounts the sidebar via a virtual module and an injected `<script type="module">` tag. The `twdRemote()` plugin defaults to `autoConnect: true` and auto-connects the browser client to the relay (`base + '/__twd/ws'`). Both are dev-only via Vite's `apply: 'serve'`; production builds are untouched.
 
-> **Note**: If your project has a custom Vite `base` path (e.g., `/my-app/`), adjust the `serviceWorkerUrl` accordingly: `serviceWorkerUrl: '/my-app/mock-sw.js'`.
-> Also adjust the relay client URL: `` `${window.location.origin}/my-app/__twd/ws` ``.
+If a previous setup left an `if (import.meta.env.DEV) { ... initTWD(...) }` or `createBrowserClient(...).connect()` block in the entry file, delete it. Leaving it in place causes **two browser clients to connect** — visible in the relay logs as a duplicate browser. The fix is either delete the manual block, or set `autoConnect: false` on `twdRemote()` to keep the manual API.
 
-### Framework-Specific Notes
+### Angular (non-Vite)
 
-**Vue:**
+Angular CLI does not use Vite at runtime, so neither plugin applies. Insert the DEV block in `src/main.ts` **before** the existing `bootstrapApplication(...)` call:
+
 ```typescript
-// src/main.ts
-import { createApp } from 'vue';
-import App from './App.vue';
-
-if (import.meta.env.DEV) {
-  const { initTWD } = await import('twd-js/bundled');
-  const tests = import.meta.glob("./**/*.twd.test.ts");
-  initTWD(tests, { open: true, position: 'left' });
-
-  const { createBrowserClient } = await import('twd-relay/browser');
-  const client = createBrowserClient({ url: `${window.location.origin}/__twd/ws` });
-  client.connect();
-}
-
-createApp(App).mount('#app');
-```
-
-**Angular:**
-```typescript
-// src/main.ts
+// src/main.ts — Angular path
 import { isDevMode } from '@angular/core';
 
 if (isDevMode()) {
@@ -94,36 +58,38 @@ if (isDevMode()) {
 }
 ```
 
-**Solid.js:**
-```tsx
-// src/main.tsx
-if (import.meta.env.DEV) {
-  const { initTWD } = await import('twd-js/bundled');
-  const tests = import.meta.glob("./**/*.twd.test.ts");
-  initTWD(tests, { open: true, position: 'left' });
+> **Note (Angular and other non-Vite bundlers):** if your dev server is served from a non-root base path (e.g. `/my-app/`), adjust the relay client URL accordingly: `` `${window.location.origin}/my-app/__twd/ws` ``, and update `serviceWorkerUrl` to `'/my-app/mock-sw.js'`. Vite consumers do not need this — the plugin handles base-prefixing automatically.
 
-  const { createBrowserClient } = await import('twd-relay/browser');
-  const client = createBrowserClient({ url: `${window.location.origin}/__twd/ws` });
-  client.connect();
-}
-```
+**initTWD options (non-Vite path):**
+- `open` (boolean) — sidebar open by default. Default: `true`
+- `position` (`"left"` | `"right"`) — sidebar position. Default: `"left"`
+- `serviceWorker` (boolean) — enable API mocking. Default: `true`
+- `serviceWorkerUrl` (string) — service worker path. Default: `'/mock-sw.js'`
 
 ## Step 4: Vite Plugins
 
 ```typescript
 // vite.config.ts
-import { twdHmr } from 'twd-js/vite-plugin';
+import { twd } from 'twd-js/vite-plugin';
 import { twdRemote } from 'twd-relay/vite';
 import type { PluginOption } from 'vite';
 
 export default defineConfig({
   plugins: [
     // ... other plugins
-    twdHmr(),
+    twd({
+      testFilePattern: '/**/*.twd.test.{ts,tsx}',
+      open: true,
+      position: 'left',
+    }),
     twdRemote() as PluginOption,
   ],
 });
 ```
+
+`twd()` (from `twd-js@1.8.0+`) auto-discovers test files, mounts the sidebar via a virtual module + injected `<script>` tag, and respects Vite `base` for both the script src and the default `serviceWorkerUrl`. The old `twdHmr()` plugin is no longer needed — full-reload on test-file edits is built in.
+
+`twdRemote()` defaults to `autoConnect: true` and injects the relay browser client into `index.html` automatically. The relay-server path and the injected client path resolve from the same formula (`options.path ?? base + '/__twd/ws'`), so they cannot drift on a non-default `base`. Use `twdRemote({ autoConnect: false })` if you need to wire `createBrowserClient` manually — useful when subscribing to client events.
 
 ## Step 5: Write a First Test
 
