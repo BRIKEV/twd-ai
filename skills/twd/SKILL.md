@@ -2,7 +2,7 @@
 name: twd
 description: TWD agent — writes deterministic in-browser component/page tests (complementary to Playwright/Cypress, not a replacement), runs them via twd-relay, fixes failures, and re-runs until green.
 argument-hint: ["run all tests", "test login page", "write tests for user dashboard"]
-allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(npm install twd-js), Bash(npm install --save-dev twd-relay), Bash(npx twd-js init *), Bash(npx twd-relay run), Bash(npx twd-relay run *), Bash(npx twd-cli run), Bash(npx twd-cli run *), Task]
+allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(npm install --save-dev twd-js), Bash(npm install --save-dev twd-relay), Bash(npx twd-js init *), Bash(npx twd-relay run), Bash(npx twd-relay run *), Bash(npx twd-cli run), Bash(npx twd-cli run *), Task]
 context: fork
 agent: general-purpose
 ---

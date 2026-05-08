@@ -7,9 +7,11 @@
 ## Step 1: Install Packages
 
 ```bash
-npm install twd-js
+npm install --save-dev twd-js
 npm install --save-dev twd-relay
 ```
+
+Both packages are dev-only — `twd-js` is loaded behind `import.meta.env.DEV` (or the framework-specific dev guard) and `twd-relay` only attaches to the dev server. Install both as `devDependencies` so they don't ship in production builds.
 
 ## Step 2: Initialize Mock Service Worker
 

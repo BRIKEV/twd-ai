@@ -210,8 +210,10 @@ const modal = screenDomGlobal.getByRole("dialog");
 
 After generating the config file, check if TWD is already installed. If not, ask the user if they want to run setup now:
 
-1. `npm install twd-js`
+1. `npm install --save-dev twd-js`
 2. `npm install --save-dev twd-relay`
+
+   Both packages are dev-only — `twd-js` is loaded behind `import.meta.env.DEV` (or the equivalent dev guard) and `twd-relay` only attaches to the dev server. They must NOT land in `dependencies`, otherwise they'll be bundled into production builds.
 3. `npx twd-js init PUBLIC_DIR --save`
 4. Configure entry point — **insert this DEV block BEFORE the existing app mount code** (before `createRoot`, `createApp`, etc.). The block to insert depends on `isVite`.
 
