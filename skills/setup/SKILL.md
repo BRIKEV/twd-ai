@@ -1,13 +1,15 @@
 ---
 name: setup
-description: Configures TWD for a project — detects settings and generates .claude/twd-patterns.md
+description: Configures TWD for a project — detects settings, generates .claude/twd-patterns.md, and wires up the twd() Vite plugin (or the manual initTWD entry-file approach for non-Vite projects)
 disable-model-invocation: true
-allowed-tools: [Read, Write, Glob, Grep, Bash(npm install *), Bash(npx twd-js init *), AskUserQuestion]
+allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(npm install *), Bash(npx twd-js init *), AskUserQuestion]
 ---
 
 # TWD Project Setup
 
 You are configuring TWD (Test While Developing) for this project. Your job is to detect project settings, ask questions for what can't be auto-detected, and generate a `.claude/twd-patterns.md` configuration file.
+
+**Default path: the `twd()` Vite plugin.** The vast majority of TWD users are on Vite, so the skill optimises for that case. Only fall back to the manual `initTWD(...)` entry-file approach when the project is provably non-Vite (no `vite` dep AND no `vite.config.*` AND no `astro.config.*` — see Step 1). When in doubt, prefer the Vite path and confirm with the user before deviating.
 
 ## Step 1: Auto-Detect Project Settings
 
@@ -23,6 +25,20 @@ Read these files to pre-fill answers (read all in parallel):
 2. **`vite.config.ts`** (or `.js`, `.mjs`) — detect:
    - `base` field (Vite base path, default `/`)
    - `server.port` (dev server port, default `5173`)
+
+   Also classify the project as Vite vs non-Vite:
+
+   ```
+   isVite = (
+     package.json declares `vite` as a dep
+     OR
+     any of (vite.config.ts, vite.config.js, vite.config.mjs) exists at the project root
+   )
+   ```
+
+   The `isVite` flag drives entry-file and plugin decisions in Step 4. Vite-based projects (the default and most common case) use the new `twd()` Vite plugin (auto-injects `initTWD` via a virtual module); non-Vite projects (Angular CLI, Webpack/CRA) fall back to the manual `if (import.meta.env.DEV) { initTWD(...) }` block in the entry file.
+
+   Edge case — Astro: Astro projects use Vite under the hood but configure plugins in `astro.config.mjs` under `vite.plugins`. If `astro.config.*` exists, treat as Vite (`isVite = true`) and adapt Step 4 sub-step 5 to write into `astro.config.mjs`'s `vite.plugins` block.
 
 3. **`index.html`** — detect entry point from `<script>` src attribute
 
@@ -50,6 +66,7 @@ Present auto-detected values as a summary first, then ask questions in two batch
 
 > Here's what I detected:
 > - Framework: React
+> - Build tool: Vite
 > - Vite base path: `/`
 > - Dev server port: `5173`
 > - Entry point: `src/main.tsx`
@@ -59,6 +76,8 @@ Present auto-detected values as a summary first, then ask questions in two batch
 > - State management: Zustand
 >
 > Does anything look wrong, or should I continue?
+
+If `isVite` is false, replace the "Build tool" line with `Build tool: non-Vite (Angular CLI / Webpack / unknown — will use manual setup)` so the user knows the skill is taking the manual path.
 
 ### Batch 2: Testing concerns (need user input)
 
@@ -76,7 +95,7 @@ After confirming batch 1, use `AskUserQuestion` for each of these that requires 
 
 Create the `.claude/` directory if it doesn't exist, then write `.claude/twd-patterns.md` with the following sections. **Only include sections that are relevant** — omit sections that don't apply.
 
-```markdown
+````markdown
 # TWD Project Patterns
 
 ## Project Configuration
@@ -173,7 +192,7 @@ Use `screenDomGlobal` instead of `screenDom` for elements rendered in portals (m
 import { screenDomGlobal } from "twd-js";
 const modal = screenDomGlobal.getByRole("dialog");
 ```
-```
+````
 
 ### Template rules:
 - If base path is `/`, simplify visit paths to just `await twd.visit("/page")`
@@ -194,43 +213,121 @@ After generating the config file, check if TWD is already installed. If not, ask
 1. `npm install twd-js`
 2. `npm install --save-dev twd-relay`
 3. `npx twd-js init PUBLIC_DIR --save`
-4. Configure entry point — **insert this DEV block BEFORE the existing app mount code** (before `createRoot`, `createApp`, etc.). The import is **`twd-js/bundled`**, NOT `twd-js`:
+4. Configure entry point — **insert this DEV block BEFORE the existing app mount code** (before `createRoot`, `createApp`, etc.). The block to insert depends on `isVite`.
 
-```typescript
-if (import.meta.env.DEV) {
-  const { initTWD } = await import('twd-js/bundled');
-  const tests = import.meta.glob("./**/*.twd.test.ts");
+   **Before modifying the entry file, search it for an existing `initTWD(` call.** If one is found, the project already has the old manual boilerplate. Ask the user via `AskUserQuestion`:
 
-  initTWD(tests, {
-    open: true,
-    position: 'left',
-    serviceWorker: true,
-    serviceWorkerUrl: '/mock-sw.js',
-  });
+   > Existing manual TWD setup detected in your entry file. Remove it and use the new `twd()` Vite plugin instead?
 
-  // Connect twd-relay browser client
-  const { createBrowserClient } = await import('twd-relay/browser');
-  const client = createBrowserClient({ url: `${window.location.origin}/__twd/ws` });
-  client.connect();
-}
-```
+   If the user agrees (Vite path), delete the old `initTWD(...)` block and replace it with the relay-only block below; otherwise leave the entry file alone and skip to sub-step 5.
 
-   > **Adjustments**: If Vite `base` is not `/`, update `serviceWorkerUrl` to `'/BASE/mock-sw.js'` and relay URL to `` `${window.location.origin}/BASE/__twd/ws` ``.
+   #### Branch A — Vite project (`isVite = true`, preferred path)
 
-5. Add Vite plugins:
+   The `twd()` Vite plugin (added in sub-step 5) auto-mounts the TWD sidebar via a virtual module + injected `<script type="module">` tag. The entry file therefore only needs the `twd-relay` browser client (the relay does NOT have a plugin equivalent yet):
 
-```typescript
-import { twdHmr } from 'twd-js/vite-plugin';
-import { twdRemote } from 'twd-relay/vite';
-import type { PluginOption } from 'vite';
+   ```typescript
+   // src/main.{ts,tsx} — Vite path
+   if (import.meta.env.DEV) {
+     // twd-relay browser client (twd-js sidebar is auto-mounted by the twd() Vite plugin)
+     const { createBrowserClient } = await import('twd-relay/browser');
+     const client = createBrowserClient();
+     client.connect();
+   }
+   ```
 
-// Add to plugins array:
-plugins: [
-  // ... other plugins
-  twdHmr(),
-  twdRemote() as PluginOption,
-]
-```
+   `createBrowserClient()` with no args auto-detects the URL when `twdRemote()` is registered as a Vite plugin (added in sub-step 5). No manual base-path adjustment needed.
+
+   #### Branch B — non-Vite project (`isVite = false`)
+
+   Keep the full manual block. `import.meta.env.DEV` may not exist in non-Vite environments, so guard it:
+
+   ```typescript
+   // src/main.{ts,tsx} — non-Vite path (Webpack/CRA, etc.)
+   if (typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
+     const { initTWD } = await import('twd-js/bundled');
+     // For projects without import.meta.glob support, build the tests object manually:
+     const tests = {
+       './twd-tests/example.twd.test.ts': () => import('./twd-tests/example.twd.test'),
+     };
+
+     initTWD(tests, {
+       open: true,
+       position: 'left',
+       serviceWorker: true,
+       serviceWorkerUrl: '/mock-sw.js',
+     });
+
+     const { createBrowserClient } = await import('twd-relay/browser');
+     const client = createBrowserClient({ url: `${window.location.origin}/__twd/ws` });
+     client.connect();
+   }
+   ```
+
+   For **Angular** specifically, use `isDevMode()` from `@angular/core` instead of `import.meta.env.DEV`:
+
+   ```typescript
+   // src/main.ts — Angular path
+   import { isDevMode } from '@angular/core';
+
+   if (isDevMode()) {
+     const { initTWD } = await import('twd-js/bundled');
+     const tests = {
+       './twd-tests/example.twd.test.ts': () => import('./twd-tests/example.twd.test'),
+     };
+     initTWD(tests, { open: true, position: 'left' });
+
+     const { createBrowserClient } = await import('twd-relay/browser');
+     const client = createBrowserClient({ url: `${window.location.origin}/__twd/ws` });
+     client.connect();
+   }
+   ```
+
+   > **Adjustments (non-Vite only)**: If the dev server is served from a non-root base path, update `serviceWorkerUrl` to `'/BASE/mock-sw.js'` and the relay URL to `` `${window.location.origin}/BASE/__twd/ws` ``. The Vite-path plugin handles base-prefixing automatically — do NOT pre-prefix `serviceWorkerUrl` in the plugin options.
+
+5. Add Vite plugins — **Vite projects only.** For non-Vite projects (`isVite = false`), skip this sub-step entirely; there is no Vite config to modify.
+
+   ```typescript
+   import { twd } from 'twd-js/vite-plugin';
+   import { twdRemote } from 'twd-relay/vite';
+   import type { PluginOption } from 'vite';
+
+   // Add to plugins array (preserve existing plugin order; insert at the end):
+   plugins: [
+     // ... other plugins (react(), tailwindcss(), istanbul(), etc.)
+     twd({
+       testFilePattern: '/**/*.twd.test.{ts,tsx}', // see framework defaults below
+       open: true,
+       position: 'left',
+       // serviceWorker / serviceWorkerUrl defaults work; pass user overrides here.
+       // Other options the user wants (search, theme, rootSelector) go here too.
+     }),
+     twdRemote() as PluginOption,
+   ]
+   ```
+
+   `twd()` auto-discovers test files (`import.meta.glob`-based), injects the sidebar `<script>` into `index.html`, and respects Vite `base` for both the script src and the default `serviceWorkerUrl`. It only runs in `vite dev` (`apply: 'serve'`); production builds are unaffected. The old `twdHmr()` plugin is **no longer needed** — full-reload on test-file edits is built into `twd()`.
+
+   #### `testFilePattern` defaults by framework
+
+   | Detected framework | Recommended `testFilePattern` |
+   |---|---|
+   | React | `'/**/*.twd.test.{ts,tsx}'` |
+   | Vue | `'/**/*.twd.test.ts'` |
+   | Solid | `'/**/*.twd.test.{ts,tsx}'` |
+   | Other Vite-native | `'/**/*.twd.test.ts'` (default) |
+
+   #### `TwdPluginOptions` reference
+
+   | Option | Type | Default | Notes |
+   |---|---|---|---|
+   | `testFilePattern` | `string` | `/**/*.twd.test.ts` | Glob for test discovery |
+   | `open` | `boolean` | `true` | Sidebar starts open |
+   | `position` | `"left" \| "right"` | `"left"` | Sidebar anchor |
+   | `serviceWorker` | `boolean` | `true` | Register Mock Service Worker |
+   | `serviceWorkerUrl` | `string` | `/mock-sw.js` | Auto base-prefixed if user didn't set it |
+   | `theme` | `Partial<TWDTheme>` | — | Sidebar theme overrides |
+   | `search` | `boolean` | `false` | Show sidebar search input |
+   | `rootSelector` | `string` | — | Custom screenDom root (e.g. `#my-app`) |
 
 6. Write a **scaffold-only** first test file at `src/twd-tests/hello.twd.test.ts` (create the `src/twd-tests/` directory if needed). The file must contain **only empty `it` blocks** — this is a setup skill, NOT a test-writing skill. Do NOT invent assertions, selectors, or page content. Do NOT add Sinon unless the user explicitly configured third-party modules that need stubbing. Use the beforeEach/afterEach from the generated `twd-patterns.md`.
 
@@ -265,5 +362,6 @@ Only run steps the user approves. Show what each step does before executing.
 When done, summarize:
 - Where the config file was written
 - What values were detected vs asked
+- **Which integration path was used** — Vite plugin (`twd()` in `vite.config.*`, entry file only has the relay block) or manual (`initTWD(...)` block in entry file). For Vite projects with a non-root `base`, mention that the plugin auto-prefixes the script src and `serviceWorkerUrl` — no manual adjustment needed.
 - What setup steps were completed (if any)
 - Next steps for the user (e.g., "Run `npm run dev` to see the TWD sidebar")
