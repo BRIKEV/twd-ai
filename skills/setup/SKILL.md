@@ -9,6 +9,8 @@ allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(npm install *), Bash(npx twd
 
 You are configuring TWD (Test While Developing) for this project. Your job is to detect project settings, ask questions for what can't be auto-detected, and generate a `.claude/twd-patterns.md` configuration file.
 
+**Default path: the `twd()` Vite plugin.** The vast majority of TWD users are on Vite, so the skill optimises for that case. Only fall back to the manual `initTWD(...)` entry-file approach when the project is provably non-Vite (no `vite` dep AND no `vite.config.*` AND no `astro.config.*` — see Step 1). When in doubt, prefer the Vite path and confirm with the user before deviating.
+
 ## Step 1: Auto-Detect Project Settings
 
 Read these files to pre-fill answers (read all in parallel):
@@ -34,7 +36,7 @@ Read these files to pre-fill answers (read all in parallel):
    )
    ```
 
-   The `isVite` flag drives entry-file and plugin decisions in Step 4. Vite-based projects use the new `twd()` Vite plugin (auto-injects `initTWD` via a virtual module); non-Vite projects (Angular CLI, Webpack/CRA) keep the manual `if (import.meta.env.DEV) { initTWD(...) }` block in the entry file.
+   The `isVite` flag drives entry-file and plugin decisions in Step 4. Vite-based projects (the default and most common case) use the new `twd()` Vite plugin (auto-injects `initTWD` via a virtual module); non-Vite projects (Angular CLI, Webpack/CRA) fall back to the manual `if (import.meta.env.DEV) { initTWD(...) }` block in the entry file.
 
    Edge case — Astro: Astro projects use Vite under the hood but configure plugins in `astro.config.mjs` under `vite.plugins`. If `astro.config.*` exists, treat as Vite (`isVite = true`) and adapt Step 4 sub-step 5 to write into `astro.config.mjs`'s `vite.plugins` block.
 
@@ -93,7 +95,7 @@ After confirming batch 1, use `AskUserQuestion` for each of these that requires 
 
 Create the `.claude/` directory if it doesn't exist, then write `.claude/twd-patterns.md` with the following sections. **Only include sections that are relevant** — omit sections that don't apply.
 
-```markdown
+````markdown
 # TWD Project Patterns
 
 ## Project Configuration
@@ -190,7 +192,7 @@ Use `screenDomGlobal` instead of `screenDom` for elements rendered in portals (m
 import { screenDomGlobal } from "twd-js";
 const modal = screenDomGlobal.getByRole("dialog");
 ```
-```
+````
 
 ### Template rules:
 - If base path is `/`, simplify visit paths to just `await twd.visit("/page")`
