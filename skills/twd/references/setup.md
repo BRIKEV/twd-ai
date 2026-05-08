@@ -72,7 +72,6 @@ if (isDevMode()) {
 // vite.config.ts
 import { twd } from 'twd-js/vite-plugin';
 import { twdRemote } from 'twd-relay/vite';
-import type { PluginOption } from 'vite';
 
 export default defineConfig({
   plugins: [
@@ -82,7 +81,7 @@ export default defineConfig({
       open: true,
       position: 'left',
     }),
-    twdRemote() as PluginOption,
+    twdRemote(),
   ],
 });
 ```
