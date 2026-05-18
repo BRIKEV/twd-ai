@@ -27,6 +27,7 @@ Read these files in parallel to understand the current setup:
    - Framework, port, base path from existing config
 4. **`twd.config.json`** — check if it already exists
 5. **Glob `.github/workflows/*.yml` AND `.github/workflows/*.yaml`** — check for existing workflows (GitHub Actions supports both extensions)
+6. **Glob `contracts/**/*.json` AND `**/openapi*.{json,yaml}`** — check for OpenAPI specs (used in Step 2.5)
 
 ## Step 2: Report Findings and Ask About Coverage
 
@@ -53,6 +54,33 @@ Report what you detected, then ask the user.
 > - **Overwrite** — replace it with the new TWD workflow
 > - **New file** — create a separate `twd-tests.yml`
 > - **Skip** — don't generate a workflow
+
+## Step 2.5: Detect Contracts and Ask About Contract Validation
+
+Use the OpenAPI specs found in Step 1 (item 6).
+
+**If the user's request already mentions contracts** ("validate contracts", "use the OpenAPI spec", "we have contracts"), skip the question and proceed as if they said "Yes".
+
+### If one or more OpenAPI specs were found:
+
+> I found OpenAPI spec(s) at:
+> - `contracts/<spec>.json`
+>
+> **Do you want to validate test mocks against them in CI?** This catches drift between your mocks and the real API on every PR.
+> - **Yes** — adds `contracts[]` + `contractReportPath` to `twd.config.json`, sets `contract-report: 'true'` on the action, adds `pull-requests: write` permission, and appends `.twd` to `.gitignore`
+> - **No** — skip; can be added later
+
+### If no specs were found:
+
+Skip this step silently.
+
+### Sensible defaults when "Yes":
+
+- **`baseUrl`** — default to `"/api"` if test files (`*.twd.test.ts` or `*.twd.test.tsx`) reference URLs starting with `/api/`. Grep `*.twd.test.*` for `url:\s*["']/api/` to confirm. Otherwise default to `"/"`.
+- **`mode`** — `"error"` (strict by default; user can switch to `"warn"` later).
+- **`strict`** — `true` (rejects unexpected properties).
+
+The "Custom setup" workflow option (Step 7, Option B) does NOT support `contract-report` PR comments — only the GitHub Action handles that. If the user picks contracts AND custom setup, warn them that the contract report won't be posted as a PR comment and they'll need to read `.twd/contract-report.md` from build artifacts.
 
 ## Step 3: Install Packages
 
@@ -94,7 +122,34 @@ If `twd.config.json` does not already exist, create it in the project root only 
 
 Use the detected port in the `url` field (default `5173`). If coverage was not requested, set `"coverage": false`.
 
-If `twd.config.json` already exists, show its contents and ask if the user wants to update it.
+### If contracts were enabled (Step 2.5):
+
+Add `contractReportPath` and `contracts[]` to the config. Example with one spec at `contracts/todos-3.0.json`:
+
+```json
+{
+  "url": "http://localhost:5173",
+  "timeout": 10000,
+  "coverage": false,
+  "coverageDir": "./coverage",
+  "nycOutputDir": "./.nyc_output",
+  "headless": true,
+  "puppeteerArgs": ["--no-sandbox", "--disable-setuid-sandbox"],
+  "contractReportPath": ".twd/contract-report.md",
+  "contracts": [
+    {
+      "source": "./contracts/todos-3.0.json",
+      "baseUrl": "/api",
+      "mode": "error",
+      "strict": true
+    }
+  ]
+}
+```
+
+Add one entry to `contracts[]` per detected spec. Use the `baseUrl`, `mode`, and `strict` defaults from Step 2.5.
+
+If `twd.config.json` already exists, show its contents and ask if the user wants to update it. When merging contracts into an existing config, preserve any user-customized fields.
 
 ## Step 5: Configure Vite (Coverage Only)
 
@@ -214,6 +269,26 @@ If coverage was requested, use `dev:ci` instead of `dev`, add `CI: true` env to 
         run: npm run collect:coverage:text
 ```
 
+If contracts were enabled (Step 2.5), add the top-level `permissions` block and pass `contract-report: 'true'` to the action:
+
+```yaml
+permissions:
+  pull-requests: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      # ... checkout, setup-node, install, msw init, start dev server ...
+
+      - name: Run TWD tests
+        uses: BRIKEV/twd-cli/.github/actions/run@main
+        with:
+          contract-report: 'true'
+```
+
+The `pull-requests: write` permission lets the action post the contract validation summary as a PR comment.
+
 ### Option B: Custom Setup
 
 Use the appropriate template from `skills/twd/references/ci.md`:
@@ -226,6 +301,18 @@ Use the appropriate template from `skills/twd/references/ci.md`:
 - If base path is not `/`, append it to the `wait-on` URL
 - Use `dev:ci` for the server command if coverage is enabled, `dev` otherwise
 
+## Step 8: Update `.gitignore` (Contracts Only)
+
+Skip this step if contracts were not enabled.
+
+The contract report is written to `.twd/contract-report.md`. Append `.twd` to `.gitignore` if it isn't already listed:
+
+```
+.twd
+```
+
+If `.gitignore` doesn't exist, create it with that single line. If it exists, read it first and only append when the entry is missing.
+
 ## Output
 
 When done, summarize:
@@ -233,7 +320,9 @@ When done, summarize:
 - What packages were installed
 - What files were created or modified
 - Whether coverage was set up
+- Whether contract validation was set up (and which specs)
 - Next steps:
   - "Push to GitHub to trigger the workflow"
   - "Run `npm run test:ci` locally to verify headless tests work"
   - If coverage: "Run `npm run dev:ci` then `npm run test:ci` then `npm run collect:coverage:text` to see coverage locally"
+  - If contracts: "Mock vs spec drift will appear as a PR comment after the next push; locally, check `.twd/contract-report.md` after `npm run test:ci`"

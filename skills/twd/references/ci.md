@@ -300,3 +300,71 @@ jobs:
 - **Node version**: Adjust `node-version` to match your project
 - **Package manager**: Replace `npm ci` / `npm run` with `yarn install --frozen-lockfile` / `yarn` or `pnpm install --frozen-lockfile` / `pnpm` if applicable
 - **Coverage upload**: Add Codecov or Coveralls action after the coverage step if desired
+
+---
+
+## Contract Validation
+
+`twd-cli` can validate test mocks against OpenAPI specs (3.0 or 3.1, JSON format) on every test run. When a mock response doesn't match the spec, the run fails with a diff showing the drift. This catches the case where the API changes but mocks don't.
+
+### When to enable
+
+Enable if the project ships an OpenAPI spec (commonly at `contracts/*.json` or `openapi.{json,yaml}`). Contract validation is the most impactful PR feedback `twd-cli` provides — opt in whenever a spec exists.
+
+### `twd.config.json` fields
+
+```json
+{
+  "contractReportPath": ".twd/contract-report.md",
+  "contracts": [
+    {
+      "source": "./contracts/<spec>.json",
+      "baseUrl": "/api",
+      "mode": "error",
+      "strict": true
+    }
+  ]
+}
+```
+
+**Contract options:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `source` | string | — | Path to the OpenAPI spec file (JSON) |
+| `baseUrl` | string | `"/"` | Base URL prefix stripped when matching mock URLs to spec paths |
+| `mode` | `"error"` \| `"warn"` | `"warn"` | `error` fails the run, `warn` reports only |
+| `strict` | boolean | `false` | When `true`, unexpected properties are rejected |
+| `contractReportPath` | string | — | Path (relative to project root) for the markdown report posted as a PR comment |
+
+### Workflow additions
+
+Top-level `permissions` block (needed so the action can post the PR comment):
+
+```yaml
+permissions:
+  pull-requests: write
+```
+
+And enable the report on the action:
+
+```yaml
+- name: Run TWD tests
+  uses: BRIKEV/twd-cli/.github/actions/run@main
+  with:
+    contract-report: 'true'
+```
+
+The composite action reads `contractReportPath` from `twd.config.json` and posts the contents as a PR comment when `contract-report: 'true'`.
+
+### `.gitignore`
+
+The report directory is generated output:
+
+```
+.twd
+```
+
+### Custom (non-action) workflows
+
+The `contract-report: 'true'` input is specific to the `BRIKEV/twd-cli/.github/actions/run` composite action. With a custom workflow, `twd-cli run` will still validate contracts and write `.twd/contract-report.md` (if `contractReportPath` is set), but you'll need to upload it as a build artifact or post the comment yourself — there's no built-in PR comment posting outside the action.
