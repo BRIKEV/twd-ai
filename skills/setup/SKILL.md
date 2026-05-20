@@ -46,13 +46,24 @@ Read these files to pre-fill answers (read all in parallel):
 
 5. **Check if `public/` directory exists** — confirm public folder name
 
-6. **Detect state management** from `package.json` dependencies:
+6. **Detect client state management** from `package.json` dependencies:
    - `zustand` → Zustand
-   - `@reduxjs/toolkit` or `redux` → Redux
+   - `@reduxjs/toolkit` or `redux` → Redux (note: RTK Query's cache is separate from the Redux store — see #7)
    - `jotai` → Jotai
    - `pinia` → Pinia
+   - `valtio` → Valtio
 
-7. **Check if `.claude/twd-patterns.md` already exists** — offer to update vs overwrite
+7. **Detect server-state caches** from `package.json` dependencies:
+   - `@tanstack/react-query`, `@tanstack/vue-query`, `@tanstack/solid-query`, `@tanstack/angular-query-experimental` → TanStack Query
+   - `react-query` → React Query v3 (legacy)
+   - `swr` → SWR
+   - `@apollo/client` → Apollo Client
+   - `urql`, `@urql/preact`, `@urql/svelte` → urql
+   - `@reduxjs/toolkit` **with** `createApi`/`fetchBaseQuery` usage somewhere under `src/` (grep `src/` for `createApi(` or `fetchBaseQuery(`) → RTK Query
+
+   These libraries cache fetched data at the module level. Because `twd.visit(...)` is an SPA navigation (no page reload), the cache survives across tests and the **second** test against a fetching page will short-circuit on cached data instead of calling `fetch` — meaning TWD mocks never match and tests fail with misleading "rule not executed" errors. Step 2 Batch 2 asks the user how to reset whichever cache is in use.
+
+8. **Check if `.claude/twd-patterns.md` already exists** — offer to update vs overwrite
 
 ## Step 2: Ask Questions
 
@@ -73,9 +84,12 @@ Present auto-detected values as a summary first, then ask questions in two batch
 > - Public folder: `public/`
 > - API services: `src/services/`
 > - CSS library: MUI
-> - State management: Zustand
+> - Client state management: Zustand
+> - Server-state cache: TanStack Query
 >
 > Does anything look wrong, or should I continue?
+
+Omit the "Client state management" or "Server-state cache" line entirely when nothing was detected for that category — don't print `none`.
 
 If `isVite` is false, replace the "Build tool" line with `Build tool: non-Vite (Angular CLI / Webpack / unknown — will use manual setup)` so the user knows the skill is taking the manual path.
 
@@ -88,8 +102,19 @@ After confirming batch 1, use `AskUserQuestion` for each of these that requires 
 3. **Third-party modules**: Does your project use external services that need mocking in tests? (e.g., Auth0, Stripe, analytics)
    - If yes: Which modules and how are they imported?
    - The agent needs this to know what to Sinon-stub in tests — "test what you own, mock what you don't"
-4. **State reset** (only if state management was detected): How do you reset the store? (e.g., `useStore.setState(initialState)`, `store.$reset()`)
+4. **Client state reset** (only if a client state library was detected in Step 1 #6): How do you reset the store? (e.g., `useStore.setState(initialState)`, `store.$reset()`)
    - TWD runs without page reloads — store state persists between tests and must be reset in beforeEach
+
+5. **Server-state cache reset** (only if a server-state cache was detected in Step 1 #7): Present this with `AskUserQuestion`:
+
+   > Your project uses **DETECTED_LIB**. TWD navigations are SPA-style, so the in-memory query cache lives across tests. **Without resetting it, the second test against a fetching page won't actually hit the network**, and your mocks will look broken when they aren't.
+   >
+   > The fix is to expose the cache as a module-level singleton and clear it in `beforeEach`. How do you want to handle this?
+   > - **I already have the singleton — show me where** (ask for the import path, e.g. `#/query-client` or `src/lib/query-client.ts`)
+   > - **Generate the pattern for me** (skill scaffolds `src/query-client.ts` / `src/apollo-client.ts` / etc. and notes the entry-file refactor needed)
+   > - **Skip for now** (user wants to handle it later; skip QUERY_CACHE_RESET in `twd-patterns.md` but still write the "Server-State Cache" section as a heads-up)
+
+   Record the chosen import path so it can be used in the generated `twd-patterns.md` (next step).
 
 ## Step 3: Generate `.claude/twd-patterns.md`
 
@@ -139,8 +164,9 @@ await twd.visit("BASE_PATHsome-page");
 beforeEach(() => {
   twd.clearRequestMockRules();
   twd.clearComponentMocks();
+  // STORE_RESET (only if a client state library detected — e.g., useStore.setState(initialState), store.$reset())
+  // QUERY_CACHE_RESET (only if a server-state cache detected — see "Server-State Cache" section below)
   // SINON_RESTORE (only if third-party modules need stubbing — Sinon.restore())
-  // STORE_RESET (only if state management detected — e.g., useStore.setState(initialState), store.$reset())
   // AUTH_SETUP (only if auth middleware detected)
   // THIRD_PARTY_STUBS (only if third-party modules detected — e.g., Sinon.stub(authModule, 'useAuth').returns(...))
 });
@@ -149,6 +175,24 @@ afterEach(() => {
   twd.clearRequestMockRules();
 });
 ```
+
+Substitute `QUERY_CACHE_RESET` with the right line based on the detected library:
+
+| Library | Import + reset line |
+|---|---|
+| TanStack Query (any framework) | `import { queryClient } from "USER_PATH";` + `queryClient.clear();` |
+| React Query v3 | same as TanStack Query |
+| SWR (global cache) | `import { mutate } from "swr";` + `mutate(() => true, undefined, { revalidate: false });` |
+| SWR (`<SWRConfig provider={...}>`) | Export the provider Map as a singleton at `USER_PATH` and call `.clear()` on it |
+| Apollo Client | `import { apolloClient } from "USER_PATH";` + `await apolloClient.clearStore();` (the `beforeEach` becomes `async`) |
+| RTK Query | `import { store } from "USER_PATH";` + `store.dispatch(api.util.resetApiState());` |
+| urql | Use `cache.invalidate("Query")` via `@urql/exchange-graphcache` if installed; otherwise document the limitation (urql has no cross-version reset primitive) |
+
+## Server-State Cache
+
+This project uses **SERVER_STATE_LIB**. Because `twd.visit(...)` is an SPA navigation (no page reload), the cache survives between tests. Tests **must** clear it in `beforeEach`, otherwise loaders/queries will return stale cached data and your TWD mocks will never match — failures show up as "rule was not executed" even though the mock is registered correctly.
+
+The cache is exposed as a module-level singleton at: `USER_PATH`
 
 ## API Service Types
 
@@ -201,7 +245,10 @@ const modal = screenDomGlobal.getByRole("dialog");
 - Omit the "Third-Party Modules" section entirely if no external modules
 - Omit the "CSS / Component Library" section if none detected
 - Omit the "API Service Types" section if no services folder found
-- Omit the `STORE_RESET` comment in beforeEach if no state management library
+- Omit the `STORE_RESET` comment in beforeEach if no client state library detected
+- Omit the `QUERY_CACHE_RESET` comment in beforeEach if no server-state cache detected
+- Omit the "Server-State Cache" section if no server-state cache detected
+- Replace the placeholder `// QUERY_CACHE_RESET` comment with the actual import + reset line when the user provided a path or accepted scaffolding (don't leave it as a comment in that case); keep it as a `// QUERY_CACHE_RESET — TODO ...` comment if the user chose "Skip for now"
 - Omit the `AUTH_SETUP` comment in beforeEach if no auth middleware
 - Omit the `THIRD_PARTY_STUBS` comment in beforeEach if no third-party modules
 - Omit `Sinon.restore()` in beforeEach if no third-party modules need stubbing — Sinon is ONLY needed when the user has external modules to stub
@@ -328,7 +375,59 @@ After generating the config file, check if TWD is already installed. If not, ask
    | `search` | `boolean` | `false` | Show sidebar search input |
    | `rootSelector` | `string` | — | Custom screenDom root (e.g. `#my-app`) |
 
-6. Write a **scaffold-only** first test file at `src/twd-tests/hello.twd.test.ts` (create the `src/twd-tests/` directory if needed). The file must contain **only empty `it` blocks** — this is a setup skill, NOT a test-writing skill. Do NOT invent assertions, selectors, or page content. Do NOT add Sinon unless the user explicitly configured third-party modules that need stubbing. Use the beforeEach/afterEach from the generated `twd-patterns.md`.
+6. **Scaffold server-state cache singleton** — only if a server-state cache was detected in Step 1 #7 AND the user picked "Generate the pattern for me" in Step 2 Batch 2 #5. Skip otherwise.
+
+   Two changes are needed:
+   - **Create the singleton file** at `src/<lib>-client.ts` (or `.js` if the project is JS-only).
+   - **Refactor the entry file** (or wherever the client is currently constructed) to import the singleton instead of `new`ing it inline.
+
+   Show the diff to the user via `Edit` and confirm before applying. Templates per library:
+
+   **TanStack Query (React; Vue/Solid/Angular are analogous — swap the import package):**
+
+   ```typescript
+   // src/query-client.ts
+   import { QueryClient } from '@tanstack/react-query';
+
+   export const queryClient = new QueryClient({
+     defaultOptions: { queries: { staleTime: 1000 * 30 } },
+   });
+   ```
+
+   Entry-file refactor: replace `const queryClient = new QueryClient(...)` with `import { queryClient } from './query-client'`. The `<QueryClientProvider client={queryClient}>` stays where it is.
+
+   **Apollo Client:**
+
+   ```typescript
+   // src/apollo-client.ts
+   import { ApolloClient, InMemoryCache } from '@apollo/client';
+
+   export const apolloClient = new ApolloClient({
+     uri: '/graphql',
+     cache: new InMemoryCache(),
+   });
+   ```
+
+   Entry-file refactor: replace inline `new ApolloClient(...)` with `import { apolloClient } from './apollo-client'`.
+
+   **SWR (global cache):** no singleton extraction needed — SWR's cache is global by default and reset via `mutate(() => true, undefined, { revalidate: false })`. Skip the scaffold step but still write the heads-up section.
+
+   **SWR (`<SWRConfig provider={...}>`):**
+
+   ```typescript
+   // src/swr-cache.ts
+   export const swrCache = new Map();
+   ```
+
+   Then in the entry file, pass `provider={() => swrCache}` to `<SWRConfig>` and reset via `swrCache.clear()`.
+
+   **RTK Query:** no separate singleton needed — the store is already a singleton. Just confirm the store's export path and reset via `store.dispatch(api.util.resetApiState())`.
+
+   **urql:** if `@urql/exchange-graphcache` is in use, document the `cache.invalidate("Query")` pattern in `twd-patterns.md`. If not, surface the limitation to the user and offer to skip the QUERY_CACHE_RESET line — there's no general-purpose urql cache reset.
+
+   After scaffolding, update `USER_PATH` in the generated `twd-patterns.md` to point at the new singleton file (e.g. `./query-client`).
+
+7. Write a **scaffold-only** first test file at `src/twd-tests/hello.twd.test.ts` (create the `src/twd-tests/` directory if needed). The file must contain **only empty `it` blocks** — this is a setup skill, NOT a test-writing skill. Do NOT invent assertions, selectors, or page content. Do NOT add Sinon unless the user explicitly configured third-party modules that need stubbing. Use the beforeEach/afterEach from the generated `twd-patterns.md`.
 
    Example scaffold:
 
@@ -352,7 +451,7 @@ After generating the config file, check if TWD is already installed. If not, ask
    });
    ```
 
-   > **Rules for this scaffold**: Only include `Sinon.restore()` in beforeEach if third-party modules were configured. Only include store reset if state management was configured. The `it` blocks must be empty with a comment pointing to the `/twd` skill. If the user specified a different test location, use that instead of `src/twd-tests/`.
+   > **Rules for this scaffold**: Only include `Sinon.restore()` in beforeEach if third-party modules were configured. Only include client store reset if a client state library was configured. Only include the server-state cache reset (e.g. `queryClient.clear()`) if a server-state cache was configured AND the user provided a path or accepted scaffolding (sub-step 6). The `it` blocks must be empty with a comment pointing to the `/twd` skill. If the user specified a different test location, use that instead of `src/twd-tests/`.
 
 Only run steps the user approves. Show what each step does before executing.
 
@@ -362,5 +461,6 @@ When done, summarize:
 - Where the config file was written
 - What values were detected vs asked
 - **Which integration path was used** — Vite plugin (`twd()` in `vite.config.*`, entry file only has the relay block) or manual (`initTWD(...)` block in entry file). For Vite projects with a non-root `base`, mention that the plugin auto-prefixes the script src and `serviceWorkerUrl` — no manual adjustment needed.
+- **Server-state cache handling** (if applicable) — which library was detected, the import path used in `QUERY_CACHE_RESET`, and whether the singleton was scaffolded or the user provided an existing path
 - What setup steps were completed (if any)
 - Next steps for the user (e.g., "Run `npm run dev` to see the TWD sidebar")
