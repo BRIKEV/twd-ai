@@ -21,17 +21,23 @@ Exit code 0 = all passed, 1 = failures.
 
 ## Running Specific Tests
 
-Use `--test` to isolate tests by name (substring match, case-insensitive):
+Use `--test` to isolate tests by name. Matching is a **case-insensitive substring of the full describe-path** (`"Describe > nested > test name"`):
 
 ```bash
 # Run tests matching "should show error"
 npx twd-relay run --test "should show error"
 
+# Passing a describe name runs every test under it
+npx twd-relay run --test "Login page"
+
+# Cross-boundary filters spanning describe and it names also work
+npx twd-relay run --test "login flow > shows error"
+
 # Run multiple specific tests (OR logic — matches any)
 npx twd-relay run --test "login" --test "signup"
 ```
 
-When no tests match the filter, the CLI prints the available test names so you can correct the filter.
+When no tests match the filter, the CLI lists the available tests as full describe-paths so you can construct a working retry.
 
 ## Running Tests Headlessly (CI)
 
@@ -42,6 +48,14 @@ npx twd-cli run
 ```
 
 This launches a headless browser, runs all tests, and reports results. Configure via `twd.config.json` in the project root.
+
+`twd-cli` supports the same `--test` filter with the same describe-path semantics:
+
+```bash
+npx twd-cli run --test "Login" --test "Signup"
+```
+
+Notes: if no test matches, the run exits 1 and prints `No tests matched filter(s): …` — a typo won't silently look like a pass. Code coverage collection is skipped while a `--test` filter is active (filtered runs are partial/debug runs).
 
 ## MANDATORY Pre-Flight Check — DO NOT SKIP
 

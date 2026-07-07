@@ -21,7 +21,7 @@ agent: general-purpose
 These rules override everything else. If any rule conflicts with instructions below, the rule here wins.
 
 1. **ONE top-level `describe()` per file.** Nest sub-scenarios with inner `describe()` blocks. Multiple top-level describes break the test runner.
-2. **Use `--test "name"` to isolate failing tests.** Never re-run the full suite to verify a single fix. Use `npx twd-relay run --test "failing test name"`. For multiple tests: `--test "one" --test "two"`. Matching is substring and case-insensitive.
+2. **Use `--test "name"` to isolate failing tests.** Never re-run the full suite to verify a single fix. Use `npx twd-relay run --test "failing test name"`. For multiple tests: `--test "one" --test "two"`. Matching is a case-insensitive substring of the full describe-path (`"Describe > nested > test name"`) — passing a `describe` name runs every test under it.
 3. **Mock BEFORE visit.** Always set up `twd.mockRequest()` before `twd.visit()`.
 4. **Always `await` async methods.** `twd.visit()`, `twd.get()`, `userEvent.*`, `screenDom.findBy*`, `twd.waitForRequest()`, `twd.waitFor()`, `twd.mockRequest()`.
 5. **Imports from TWD only.** `describe`/`it`/`beforeEach` from `twd-js/runner`, `expect` from `twd-js` — never from Jest, Mocha, or Vitest. `expect` is **Chai-style**: use `.to.equal()`, `.to.have.length()`, `.to.deep.equal()`, `.to.be.true` — **NEVER** Jest-style `.toBe()`, `.toHaveLength()`, `.toEqual()`, `.toBeTruthy()`.
@@ -169,9 +169,12 @@ npx twd-relay run --test "should render list"
 
 # Multiple failing tests at once:
 npx twd-relay run --test "should render list" --test "should show error"
+
+# Filters match the full describe-path, so a describe name runs everything under it:
+npx twd-relay run --test "Login page"
 ```
 
-Matching is substring and case-insensitive. If no tests match, the CLI prints available test names.
+Matching is a case-insensitive substring of the full describe-path (`"Describe > nested > test name"`). If no tests match, the CLI lists the available tests as full describe-paths — use them to construct a working retry.
 
 **Step 2: Diagnose and fix**
 
@@ -233,6 +236,6 @@ When done, summarize:
 
 - **Package installation**: Only `twd-js` and `twd-relay` — no other packages
 - **Write scope**: Test files (`src/twd-tests/**`), mock data files (`src/twd-tests/mocks/`), vite config (TWD plugins only), entry point (DEV-guarded init block)
-- **Execution scope**: Only `npx twd-js init <dir> --save`, `npx twd-relay run [--port --path]`, and `npx twd-cli run`
+- **Execution scope**: Only `npx twd-js init <dir> --save`, `npx twd-relay run [--port --path --test]`, and `npx twd-cli run [--test]`
 - **No production code**: All TWD code must be behind `import.meta.env.DEV` guards — TWD's sidebar UI, mock service worker, and test definitions are development tools that Vite tree-shakes out of production builds automatically when guarded by `import.meta.env.DEV`
 - **No app code changes** unless the user explicitly requests it — fix tests, not application code, by default

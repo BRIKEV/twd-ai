@@ -52,6 +52,14 @@ npx twd-cli run
 
 Exit code 0 = all passed, 1 = failures.
 
+To run a subset locally, use the repeatable `--test` flag — a case-insensitive substring match against each test's full `"Describe > test name"` path, so a describe name runs everything under it:
+
+```bash
+npx twd-cli run --test "Login" --test "Signup"
+```
+
+If nothing matches, the run exits 1 and prints `No tests matched filter(s): …`. Coverage collection is skipped during filtered runs.
+
 ---
 
 ## Code Coverage with vite-plugin-istanbul + nyc
