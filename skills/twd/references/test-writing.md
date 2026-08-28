@@ -20,7 +20,9 @@ NEVER import `describe`, `it`, `beforeEach`, `expect` from Jest, Mocha, Vitest, 
 ### File Rules
 
 - Location: `src/twd-tests/` (organize by domain for larger projects)
-- Naming: `*.twd.test.ts` (or `*.twd.test.tsx` if using JSX in mocks)
+- Naming: `*.twd.test.ts` (or `*.twd.test.tsx` if using JSX in mocks or Testing Library `render()`).
+  The `twd()` plugin's default `testFilePattern` is `'/**/*.twd.test.ts'`, which matches `.ts` ONLY —
+  a `.tsx` file needs `twd({ testFilePattern: '/**/*.twd.test.{ts,tsx}' })` or it is skipped silently
 - **ONE top-level `describe()` per file** — use nested `describe()` for sub-scenarios
 
 ### Element Selection Priority
