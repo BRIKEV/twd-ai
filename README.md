@@ -55,7 +55,7 @@ Examples:
 The agent follows a 5-phase workflow:
 1. **Detect** — checks project state and reads `.claude/twd-patterns.md`
 2. **Setup** — installs TWD if needed (packages, service worker, entry point)
-3. **Write** — analyzes your app and writes flow-based tests
+3. **Write** — analyzes your app and writes flow-based tests, plus Testing Library `render()` component tests when a component itself is the subject
 4. **Run & Fix** — runs tests via twd-relay, isolates failures with `it.only()`, fixes them
 5. **Report** — summarizes coverage and results
 
