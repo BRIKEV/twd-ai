@@ -376,3 +376,158 @@ The report directory is generated output:
 ### Custom (non-action) workflows
 
 The `contract-report: 'true'` input is specific to the `BRIKEV/twd-cli/.github/actions/run` composite action. With a custom workflow, `twd-cli run` will still validate contracts and write `.twd/contract-report.md` (if `contractReportPath` is set), but you'll need to upload it as a build artifact or post the comment yourself — there's no built-in PR comment posting outside the action.
+
+---
+
+## PR Recording (Optional)
+
+`twd-cli` can record a run to video, and the `record` composite action wraps the
+whole thing — a known-good ffmpeg, the run, the artifact upload — into one step.
+The payoff is a reviewer downloading one clip per test the branch added, straight
+from the pull request.
+
+Requires `twd-cli` **1.8.0 or newer**. 1.7.0 shipped the action, but its artifact
+upload failed on default inputs and its CLI version was unpinned.
+
+### When to enable
+
+Offer it when the project already has TWD tests and runs on GitHub Actions. It is
+optional and purely additive — nothing about the test workflow changes.
+
+**Never add `--record` to the workflow that gates pull requests.** Keep recording
+in a separate, label-triggered workflow:
+
+- A recording is optional and the pull request it describes is not. A job that
+  runs after the work is already pushed cannot cost the run that matters.
+- Recording changes the conditions tests run under — its own viewport, the
+  sidebar hidden, real delays inserted between commands — so a recorded run can
+  pass or fail differently from a normal one. It is a demo artifact, not a gate.
+
+### Workflow template
+
+Write to `.github/workflows/twd-record.yml`. Substitute the project's detected
+port in the `wait-on` URL, and `dev:ci` for `dev` if coverage is configured.
+
+```yaml
+name: Record a PR's tests
+
+# Label a PR `record` and this records the tests the branch added, then comments
+# the link. Deliberately separate from the test workflow: a recording is
+# optional, the pull request it describes is not.
+on:
+  pull_request:
+    types: [labeled]
+
+concurrency:
+  group: record-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  record:
+    if: github.event.label.name == 'record'
+    runs-on: ubuntu-latest
+    # Belt, not workaround: the hang class is fixed in the CLI, but a recording
+    # must never cost a caller more than a recording.
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write # comment the link, drop the label
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      # The PR head, not the merge commit: the point is to see the tests this
+      # branch built. fetch-depth: 0 because changed-since needs history, and a
+      # depth-1 clone does not contain the base commit at all.
+      - name: Checkout the PR head
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install mock service worker
+        run: npx twd-js init public --save
+
+      # The action assumes the app is already served at the url in
+      # twd.config.json — the same contract the `run` action has.
+      - name: Start dev server
+        run: |
+          nohup npm run dev > /dev/null 2>&1 &
+          npx wait-on http://localhost:5173
+
+      - name: Record the tests this branch added
+        id: rec
+        uses: BRIKEV/twd-cli/.github/actions/record@v1.8.0
+        with:
+          changed-since: ${{ github.event.pull_request.base.sha }}
+          artifact-name: twd-recording-pr-${{ github.event.pull_request.number }}
+
+      # Best effort: a fork PR gets a read-only token and cannot comment. Zero
+      # clips is a normal outcome, not a failure.
+      - name: Comment the link
+        if: always()
+        continue-on-error: true
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          CLIPS: ${{ steps.rec.outputs.clip-count }}
+          VIDEO_URL: ${{ steps.rec.outputs.artifact-url }}
+        run: |
+          if [ "${CLIPS:-0}" = "0" ]; then
+            gh pr comment "$PR_NUMBER" --body "Nothing to record: this branch added no TWD tests."
+          else
+            gh pr comment "$PR_NUMBER" --body "Recording: ${CLIPS} clip(s), one per test this branch added — [download the artifact](${VIDEO_URL}) and unzip."
+          fi
+
+      # Dropping the label makes a retry one click instead of remove-then-add.
+      - name: Drop the label
+        if: always()
+        continue-on-error: true
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: gh pr edit "$PR_NUMBER" --remove-label record
+```
+
+Tell the user to create the `record` label on the repo — the workflow does
+nothing until a label of that name exists and is applied.
+
+### Action inputs
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `working-directory` | `.` | Directory where `twd.config.json` lives |
+| `cli-version` | `1.8.0` | `twd-cli` version to run, pinned by default |
+| `changed-since` | (empty) | Record only the tests the branch added or changed since this ref. Needs `fetch-depth: 0`. Mutually exclusive with `tests` |
+| `tests` | (empty) | Newline-separated test titles, each becoming one `--test` filter, OR'd. Mutually exclusive with `changed-since` |
+| `pace` | (empty) | Milliseconds held after each command (`--record-pace`). Empty uses the CLI default of 300; `0` disables pacing |
+| `install-ffmpeg` | `true` | Install a known-good ffmpeg 8.x. `false` uses whatever is on `PATH` |
+| `upload-artifact` | `true` | Upload the clips as a workflow artifact |
+| `artifact-name` | `twd-recording` | Name of the uploaded artifact |
+| `retention-days` | `14` | How long to keep the artifact |
+
+Outputs: `clip-count`, `dir`, `artifact-url`.
+
+### Rules that are easy to get wrong
+
+- **Pin the action to a tag or a commit SHA, never `@main`.** What a recording
+  looks like is decided by the action and the CLI it invokes, so an unchanged
+  repo should produce an unchanged video.
+- **`clip-count: 0` is a success, not a failure.** A branch that changed no tests
+  has nothing to record. Check the count before commenting, as the template does.
+- **`changed-since` and `tests` are mutually exclusive.** Passing both fails the
+  action with an explicit error rather than silently recording more than asked.
+- **`install-ffmpeg` is Linux-only.** On any other runner it warns and skips, and
+  installing ffmpeg 8+ becomes the caller's job. `mp4` needs 8 or newer because
+  Puppeteer passes `-movflags hybrid_fragmented`; ubuntu-24.04's own package is
+  6.1.1 and cannot record at all.
+- **`pull-requests: write` is for the comment and the label only.** The action
+  itself never touches the pull request.
+
+Full documentation: https://twd.dev/recording#recording-in-ci

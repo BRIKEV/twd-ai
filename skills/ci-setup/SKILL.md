@@ -1,6 +1,6 @@
 ---
 name: ci-setup
-description: Sets up CI for TWD tests — generates GitHub Actions workflow, installs twd-cli, optionally configures code coverage
+description: Sets up CI for TWD tests — generates GitHub Actions workflow, installs twd-cli, optionally configures code coverage and PR video recording
 disable-model-invocation: true
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(npm install *)]
 ---
@@ -9,7 +9,7 @@ allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(npm install *)]
 
 You are configuring CI/CD for TWD tests. Your job is to detect the project setup, ask whether coverage is needed, install packages, and generate a GitHub Actions workflow.
 
-Read `skills/twd/references/ci.md` for twd-cli configuration, coverage setup, and GitHub Actions templates.
+Read `skills/twd/references/ci.md` for twd-cli configuration, coverage setup, GitHub Actions templates, and the PR recording workflow.
 
 ## Step 1: Detect Project State
 
@@ -81,6 +81,46 @@ Skip this step silently.
 - **`strict`** — `true` (rejects unexpected properties).
 
 The "Custom setup" workflow option (Step 7, Option B) does NOT support `contract-report` PR comments — only the GitHub Action handles that. If the user picks contracts AND custom setup, warn them that the contract report won't be posted as a PR comment and they'll need to read `.twd/contract-report.md` from build artifacts.
+
+## Step 2.6: Ask About PR Video Recording
+
+Only ask when **both** are true: existing TWD tests were found (Step 1, item 5)
+and a GitHub Actions workflow is being generated. Otherwise skip this step
+silently — there is nothing to record, or nowhere to run it.
+
+**If the user's request already mentions recording** ("record the tests", "video
+in the PR", "set up recording"), skip the question and proceed as if they said
+"Yes".
+
+> **Do you also want a PR video recording workflow?** Label a pull request
+> `record` and it records the tests that branch added, then comments a link to
+> one video per test.
+> - **Yes** — adds a separate `.github/workflows/twd-record.yml`. Your test
+>   workflow is untouched
+> - **No** — skip; can be added later
+
+### Why this is a separate workflow, not a flag on the test one
+
+If the user asks to just add `--record` to the test workflow, push back once and
+explain:
+
+- A recording is optional and the pull request it describes is not. A
+  label-triggered job runs after the work is already pushed, so it cannot cost
+  the run that matters.
+- Recording changes the conditions tests run under — its own viewport, the
+  sidebar hidden, real delays between commands — so a recorded run can pass or
+  fail differently. It is a demo artifact, not a gate.
+
+If they still want it in the test workflow after that, do as they ask.
+
+### Requirements to state when "Yes"
+
+- **`twd-cli` 1.8.0 or newer.** 1.7.0 shipped the action but its artifact upload
+  failed on default inputs. Nothing extra to install — the action fetches its own
+  pinned CLI.
+- **A Linux runner**, because the bundled ffmpeg build is Linux-only.
+- **A `record` label** on the repository. The workflow does nothing until a label
+  of that name exists and is applied, so tell the user to create it.
 
 ## Step 3: Install Packages
 
@@ -301,6 +341,34 @@ Use the appropriate template from `skills/twd/references/ci.md`:
 - If base path is not `/`, append it to the `wait-on` URL
 - Use `dev:ci` for the server command if coverage is enabled, `dev` otherwise
 
+## Step 7.5: Generate the Recording Workflow (Recording Only)
+
+Skip this step if recording was not enabled in Step 2.6.
+
+Write the "Workflow template" from `skills/twd/references/ci.md` (the
+**PR Recording** section) to `.github/workflows/twd-record.yml`. This is a new
+file in every case — never merge recording into `twd-tests.yml`, for the reason
+given in Step 2.6.
+
+**Customize:**
+- The port in the `wait-on` URL, and the base path if it is not `/`
+- `npm run dev:ci` instead of `npm run dev`, plus `CI: true`, if coverage was
+  enabled in Step 2
+- Drop the `npx twd-js init public --save` step if the project's public folder
+  differs, matching whatever the test workflow uses
+
+**Do not change:**
+- `fetch-depth: 0` on the checkout — `changed-since` diffs against the base
+  commit, and a depth-1 clone does not contain it
+- `ref: github.event.pull_request.head.sha` — the merge commit is not the branch
+  whose tests you want to see
+- The pinned action ref. Pin to a tag or commit SHA, never `@main`: what a
+  recording looks like is decided by the action and the CLI it invokes
+- The `clip-count` zero check in the comment step. A branch that changed no tests
+  has nothing to record, which is a success, not a failure
+- `timeout-minutes`, `continue-on-error` on the comment steps, and
+  `concurrency` — each one bounds a different way this can go wrong
+
 ## Step 8: Update `.gitignore` (Contracts Only)
 
 Skip this step if contracts were not enabled.
@@ -321,8 +389,10 @@ When done, summarize:
 - What files were created or modified
 - Whether coverage was set up
 - Whether contract validation was set up (and which specs)
+- Whether a PR recording workflow was created
 - Next steps:
   - "Push to GitHub to trigger the workflow"
   - "Run `npm run test:ci` locally to verify headless tests work"
   - If coverage: "Run `npm run dev:ci` then `npm run test:ci` then `npm run collect:coverage:text` to see coverage locally"
   - If contracts: "Mock vs spec drift will appear as a PR comment after the next push; locally, check `.twd/contract-report.md` after `npm run test:ci`"
+  - If recording: "Create a `record` label on the repo, then add it to a pull request to get one video per test the branch added"

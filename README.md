@@ -42,6 +42,7 @@ What it does:
 - Installs `twd-cli` for headless test running
 - Optionally sets up code coverage with `vite-plugin-istanbul` + `nyc` (requires Vite)
 - Generates `.github/workflows/twd-tests.yml`
+- Optionally generates `.github/workflows/twd-record.yml` — label a PR `record` and get one video per test the branch added
 
 ### `twd` Skill
 
