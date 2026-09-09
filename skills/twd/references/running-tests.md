@@ -78,6 +78,75 @@ When tests fail, the output includes:
 - **Error message** — what assertion failed or what error was thrown
 - **Expected vs Actual** — for assertion mismatches
 
+### The `mock rules` diagnostic
+
+`twd-js` 1.10.0 and newer attach a snapshot to a failing test, and `twd-cli`
+prints it as a row **above** the error message (the error itself can carry a full
+accessible-roles dump that would bury it):
+
+```
+Failed tests (1):
+  × Inquiries > should list the company group inquiries
+    mock rules  6/7 triggered — catalog never requested
+    AssertionError: expected 0 rows (at http://localhost:5173/cg-1/settings/catalog)
+```
+
+Read that as: of 7 registered mock rules, 6 were actually requested by the app
+and `catalog` never was. A rule that never fires usually means its URL or method
+does not match what the app requests — a much faster lead than the assertion
+message, because it names the mock rather than the symptom.
+
+With several misses it expands, capped at five:
+
+```
+    mock rules  1/4 triggered — 2 never requested
+                ✗ catalog
+                ✗ profile
+```
+
+The row is **absent** when the test registered no rules at all. "This test mocks
+nothing" is the default, not a diagnostic — you will never see `0/0`.
+
+### DO NOT trust that row on a full-suite run
+
+The snapshot reads the **global** mock-rule registry, and nothing in `twd-js`
+resets it between tests. Unless the project clears rules in an `afterEach`, rules
+registered by *earlier* tests are still counted, and the failing test gets blamed
+for aliases that have nothing to do with it.
+
+Measured on a real run of three failing tests, where the third registers zero
+mocks of its own:
+
+```
+× ... no mock rules registered at all     mock rules  0/4 triggered — 4 never requested
+```
+
+Run in isolation that same test correctly prints no row at all. So:
+
+1. **Re-run the one test alone before acting on the row** —
+   `npx twd-relay run --test "the failing test"`. In isolation the snapshot is
+   accurate.
+2. If the aliases change or disappear, the full-suite row was bleed from earlier
+   tests. Ignore it and debug the assertion instead.
+3. The durable fix belongs in the project's test setup, not in the test that
+   failed. `afterEach` comes from `twd-js/runner` and must sit inside a
+   `describe()`:
+
+   ```ts
+   import { describe, it, afterEach } from "twd-js/runner";
+   import { twd } from "twd-js";
+
+   describe("Inquiries", () => {
+     afterEach(() => {
+       twd.clearRequestMockRules();
+     });
+     // ...
+   });
+   ```
+
+   Suggest it when a project's tests have no such cleanup — it makes the
+   diagnostic trustworthy for every future failure rather than just this one.
+
 ## Common Failures and Fixes
 
 | Error | Likely Cause | Fix |
@@ -91,6 +160,7 @@ When tests fail, the output includes:
 | "twd.mockRequest is not a function" | Service worker not initialized | Ensure `serviceWorker: true` in `initTWD` options |
 | Assertion fails intermittently (element found but wrong attribute/text/state) | Race condition — render hasn't completed yet | Wrap in `await twd.waitFor(() => ...)` with the failing assertion or selector. See `test-writing.md` "waitFor vs twd.wait" for guidance |
 | `Run aborted: test "…" ran for Xs — threshold exceeded` | Browser tab is backgrounded/minimized → Chrome is throttling timers → tests run 5–30× slower than normal | Foreground the TWD tab (identified by the `[TWD …]` title prefix) and rerun. For unattended runs, switch to `npx twd-cli run` which uses a headless browser not subject to tab throttling. Raise the threshold with `npx twd-relay run --max-test-duration 15000` if a test legitimately needs longer. |
+| `mock rules  0/N triggered — N never requested` on a test that registers no mocks | Mock-rule bleed from earlier tests. The snapshot reads the global registry and nothing resets it between tests | Re-run that test alone with `--test` — the row is accurate in isolation. Add `afterEach(() => twd.clearRequestMockRules())` to fix it for the whole suite. See "Reading Failures" above |
 | `[RUN_IN_PROGRESS] A test run is already in progress…` | Previous run still locked on the relay. Usually the TWD tab was backgrounded during the prior run and is still slowly completing it. | Foreground the TWD tab (identified by the `[TWD …]` title prefix) to speed completion. The relay auto-clears the lock after 120 s of heartbeat silence, or reload the TWD tab to force-reset. Don't kill/restart the relay — it won't help. |
 
 ## Recovery from Aborted or Stuck Runs
