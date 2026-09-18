@@ -43,6 +43,7 @@ What it does:
 - Optionally sets up code coverage with `vite-plugin-istanbul` + `nyc` (requires Vite)
 - Generates `.github/workflows/twd-tests.yml`
 - Optionally generates `.github/workflows/twd-record.yml` — label a PR `record` and get one video per test the branch added
+- Wires the environment variables and mock-API steps the app needs into **both** workflows — a recording has to start the same app the tests do
 
 ### `twd` Skill
 
