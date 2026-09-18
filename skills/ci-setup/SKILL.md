@@ -28,6 +28,11 @@ Read these files in parallel to understand the current setup:
 4. **`twd.config.json`** — check if it already exists
 5. **Glob `.github/workflows/*.yml` AND `.github/workflows/*.yaml`** — check for existing workflows (GitHub Actions supports both extensions)
 6. **Glob `contracts/**/*.json` AND `**/openapi*.{json,yaml}`** — check for OpenAPI specs (used in Step 2.5)
+7. **Glob `.env`, `.env.example`, `.env.*`** and grep `src/` for `import.meta.env.VITE_[A-Z_]*` — collect the
+   environment variables the app reads at runtime, and note which file reads each one (used in Step 2.7)
+8. **`package.json` scripts, second pass** — look for a companion service the app needs before it can render:
+   a `serve`, `serve:dev`, `mock*` or `api*` script, or anything invoking `json-server`. Note its port, and a
+   health URL if one is obvious (used in Step 2.7)
 
 ## Step 2: Report Findings and Ask About Coverage
 
@@ -121,6 +126,51 @@ If they still want it in the test workflow after that, do as they ask.
 - **A Linux runner**, because the bundled ffmpeg build is Linux-only.
 - **A `record` label** on the repository. The workflow does nothing until a label
   of that name exists and is applied, so tell the user to create it.
+
+## Step 2.7: Confirm the Runtime Environment
+
+Use the environment variables found in Step 1 (item 7) and the companion service
+found in Step 1 (item 8).
+
+Starting the dev server with neither is the most common way this skill produces a
+green setup and a broken app. `wait-on` only proves that something answered on
+the port — a module that threw at import time still serves a page. The failure
+surfaces later, as a test that cannot find its elements, or as a recording of an
+error screen.
+
+### If environment variables were found:
+
+> The app reads these at runtime:
+> - `VITE_SUPABASE_URL` (from `.env.example`)
+> - `VITE_API_BASE` (from `src/shared/api/client.ts`)
+>
+> CI needs a value for each, or the module that reads them throws on import.
+> **What should CI use?**
+> - **Placeholder (recommended)** — a literal dummy value written into the
+>   workflow. TWD tests mock at the network layer, so the value is never dialled
+> - **Repository secret** — `${{ secrets.NAME }}`, for a value a test genuinely
+>   requests over the network
+
+Default to placeholders, and reach for a secret only when the user says the value
+is really used. A secret is not available to a pull request from a fork, so a
+workflow that needs one cannot run there at all — and a label-triggered recording
+workflow is a poor place to expose one.
+
+Write a comment above the `env:` block saying why the placeholders exist. The
+next person to read the workflow will otherwise take them for real credentials
+and "fix" them.
+
+### If a companion service was found:
+
+> `package.json` has a `serve` script (json-server on port 3001). The app fetches
+> on load, so the dev server needs it running first.
+>
+> I'll start it before Vite in every workflow I generate, each with its own
+> `wait-on`.
+
+### If neither was found:
+
+Skip this step silently.
 
 ## Step 3: Install Packages
 
@@ -292,6 +342,30 @@ jobs:
         uses: BRIKEV/twd-cli/.github/actions/run@main
 ```
 
+If Step 2.7 turned up environment variables or a companion service, the dev
+server step grows an `env:` block, and the service starts before it:
+
+```yaml
+      - name: Start mock API
+        run: |
+          nohup npm run serve > json-server.log 2>&1 &
+          npx wait-on http://localhost:3001/api/health
+
+      # Placeholders, not secrets: the suite mocks at the network layer, so these
+      # are never dialled. They exist because the module that reads them throws
+      # on construction when they are absent.
+      - name: Start dev server
+        run: |
+          nohup npm run dev > /dev/null 2>&1 &
+          npx wait-on http://localhost:5173
+        env:
+          VITE_SUPABASE_URL: http://localhost:54321
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+```
+
+Order matters, and each step gets its own `wait-on`. An app that fetches on load
+will otherwise render its error state before the first test runs.
+
 If coverage was requested, use `dev:ci` instead of `dev`, add `CI: true` env to the dev server step, and add the coverage step after the test step:
 
 ```yaml
@@ -352,10 +426,22 @@ given in Step 2.6.
 
 **Customize:**
 - The port in the `wait-on` URL, and the base path if it is not `/`
-- `npm run dev:ci` instead of `npm run dev`, plus `CI: true`, if coverage was
-  enabled in Step 2
+- The dev script: `dev:ci` plus `CI: true` if coverage was enabled in Step 2, or
+  plain `dev` — a recording does not need coverage instrumentation. This is the
+  only step that may legitimately differ from the test workflow
 - Drop the `npx twd-js init public --save` step if the project's public folder
   differs, matching whatever the test workflow uses
+
+**Mirror the test workflow's environment exactly.** Whatever service steps and
+`env:` blocks Step 7 wrote, this workflow gets the same ones — same order, same
+values, same explaining comment. If the user kept an existing `twd-tests.yml`
+instead of generating one, read that file and reproduce its service steps and
+`env:` blocks here.
+
+A recording runs the same app the tests run, and this is the job where a mismatch
+is hardest to notice: its output is a video, and nobody reads the log of a job
+that produced one. `wait-on` is satisfied by a served page, so a missing variable
+never fails a step — it just makes every clip a recording of an error screen.
 
 **Do not change:**
 - `fetch-depth: 0` on the checkout — `changed-since` diffs against the base
@@ -390,9 +476,11 @@ When done, summarize:
 - Whether coverage was set up
 - Whether contract validation was set up (and which specs)
 - Whether a PR recording workflow was created
+- Which environment variables were wired into the workflows, and whether they are placeholders or secrets
 - Next steps:
   - "Push to GitHub to trigger the workflow"
   - "Run `npm run test:ci` locally to verify headless tests work"
   - If coverage: "Run `npm run dev:ci` then `npm run test:ci` then `npm run collect:coverage:text` to see coverage locally"
   - If contracts: "Mock vs spec drift will appear as a PR comment after the next push; locally, check `.twd/contract-report.md` after `npm run test:ci`"
   - If recording: "Create a `record` label on the repo, then add it to a pull request to get one video per test the branch added"
+  - If environment variables were wired in: "A new variable means editing **both** workflows — the test one and the recording one. They have to start the same app"

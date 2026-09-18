@@ -311,6 +311,67 @@ jobs:
 
 ---
 
+## Runtime Environment: env vars and companion services
+
+Starting the dev server is enough only for an app that renders from static
+imports. Two things commonly have to be in place first.
+
+### Environment variables
+
+Vite inlines `import.meta.env.VITE_*` at serve time. A module that reads one and
+throws when it is absent — an API client asserting its base URL, an auth client
+asserting its domain — takes the whole app down at import.
+
+```yaml
+      # Placeholders, not secrets: the suite mocks at the network layer, so these
+      # are never dialled. They exist because src/shared/api/supabase.ts throws on
+      # construction when they are absent.
+      - name: Start Vite dev server
+        run: |
+          nohup npm run dev:ci > vite.log 2>&1 &
+          npx wait-on http://localhost:5173
+        env:
+          CI: true
+          VITE_SUPABASE_URL: http://localhost:54321
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+```
+
+Prefer a literal placeholder over `${{ secrets.NAME }}`. TWD tests mock at the
+network layer, so the value is almost never dialled, and a secret is not
+available to a pull request from a fork — a workflow that needs one simply cannot
+run there. Use a secret only for a value a test genuinely requests over the
+network.
+
+Comment the block. Placeholders that look like credentials get "fixed" by the
+next person to read the file.
+
+### Companion services
+
+An app that fetches on load needs its mock API running before Vite, each step
+with its own `wait-on`:
+
+```yaml
+      - name: Start mock API
+        run: |
+          nohup npm run serve > json-server.log 2>&1 &
+          npx wait-on http://localhost:3001/api/v1/health
+
+      - name: Start Vite dev server
+        run: |
+          nohup npm run dev:ci > vite.log 2>&1 &
+          npx wait-on http://localhost:5173
+```
+
+### Why this fails quietly
+
+`wait-on` proves that something answered on the port. It does not prove the app
+mounted. A missing variable or an absent API produces a served page showing an
+error state, so every setup step goes green and the failure surfaces later — as a
+test that cannot find its elements, or as a recording of an error screen with no
+failed step anywhere in the log.
+
+---
+
 ## Contract Validation
 
 `twd-cli` can validate test mocks against OpenAPI specs (3.0 or 3.1, JSON format) on every test run. When a mock response doesn't match the spec, the run fails with a diff showing the drift. This catches the case where the API changes but mocks don't.
@@ -494,6 +555,21 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: gh pr edit "$PR_NUMBER" --remove-label record
 ```
+
+### Environment parity with the test workflow
+
+The template above starts a bare `npm run dev`. If the test workflow needs a
+companion service or an `env:` block to make the app render — see
+[Runtime Environment](#runtime-environment-env-vars-and-companion-services) —
+this workflow needs the identical steps, in the same order, with the same values.
+
+It is the general rule, in the place it bites hardest. The output of this job is
+a video, so nobody reads its log; a missing variable does not fail a step, it
+just makes every clip a recording of an error page.
+
+The dev script is the one step that may legitimately differ: plain `dev` rather
+than `dev:ci` is fine, because a recording does not need coverage
+instrumentation.
 
 Tell the user to create the `record` label on the repo — the workflow does
 nothing until a label of that name exists and is applied.
