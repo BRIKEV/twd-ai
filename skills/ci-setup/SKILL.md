@@ -1,6 +1,6 @@
 ---
 name: ci-setup
-description: Sets up CI for TWD tests — generates GitHub Actions workflow, installs twd-cli, optionally configures code coverage and PR video recording
+description: Sets up CI for TWD tests — generates GitHub Actions workflow, installs twd-cli if missing, optionally configures code coverage, contract validation and PR video recording
 disable-model-invocation: true
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(npm install *)]
 ---
@@ -21,7 +21,7 @@ Read these files in parallel to understand the current setup:
    - Dev server port from scripts if present
 2. **`vite.config.ts`** (or `.js`, `.mjs`) — detect:
    - Whether Vite is in use (required for coverage)
-   - Existing plugins (istanbul, twdHmr, twdRemote)
+   - Existing plugins (istanbul, twd)
    - `server.port` and `base` path
 3. **`.claude/twd-patterns.md`** — detect:
    - Framework, port, base path from existing config
@@ -120,9 +120,7 @@ If they still want it in the test workflow after that, do as they ask.
 
 ### Requirements to state when "Yes"
 
-- **`twd-cli` 1.8.0 or newer.** 1.7.0 shipped the action but its artifact upload
-  failed on default inputs. Nothing extra to install — the action fetches its own
-  pinned CLI.
+- **Pin the `record` action to a tag or commit SHA.** The action fetches its own pinned CLI, so nothing extra needs installing.
 - **A Linux runner**, because the bundled ffmpeg build is Linux-only.
 - **A `record` label** on the repository. The workflow does nothing until a label
   of that name exists and is applied, so tell the user to create it.
@@ -176,13 +174,15 @@ Skip this step silently.
 
 **Always ask before installing.** Show what will be installed and wait for confirmation.
 
-### Always install:
+### twd-cli (only if missing):
+
+`/twd:setup` normally installs it. If `twd-cli` is not in `devDependencies`:
 
 ```
 npm install --save-dev twd-cli
 ```
 
-> This installs `twd-cli` for headless test running in CI. Proceed?
+> This installs `twd-cli`, the headless runner the workflow calls. Proceed?
 
 ### If coverage was requested:
 
@@ -194,37 +194,20 @@ npm install --save-dev vite-plugin-istanbul nyc
 
 Run each install command only after the user confirms.
 
-## Step 4: Create `twd.config.json`
+## Step 4: Update `twd.config.json`
 
-If `twd.config.json` does not already exist, create it in the project root only if user confirms adding that file as this file is not required for twd-cli to work.
+`/twd:setup` creates this file with `url` and `coverage`. Read it, show it to the user, and merge only what CI needs — preserve `url` and every other key already there.
+
+- **Coverage requested:** set `"coverage": true`.
+- **Coverage not requested:** leave `coverage` as it is.
+- **Contracts enabled (Step 2.5):** add `contractReportPath` and one `contracts[]` entry per detected spec, using the `baseUrl`, `mode` and `strict` defaults from Step 2.5.
+
+Example after a merge with coverage and one spec at `contracts/todos-3.0.json`:
 
 ```json
 {
   "url": "http://localhost:5173",
-  "timeout": 10000,
   "coverage": true,
-  "coverageDir": "./coverage",
-  "nycOutputDir": "./.nyc_output",
-  "headless": true,
-  "puppeteerArgs": ["--no-sandbox", "--disable-setuid-sandbox"]
-}
-```
-
-Use the detected port in the `url` field (default `5173`). If coverage was not requested, set `"coverage": false`.
-
-### If contracts were enabled (Step 2.5):
-
-Add `contractReportPath` and `contracts[]` to the config. Example with one spec at `contracts/todos-3.0.json`:
-
-```json
-{
-  "url": "http://localhost:5173",
-  "timeout": 10000,
-  "coverage": false,
-  "coverageDir": "./coverage",
-  "nycOutputDir": "./.nyc_output",
-  "headless": true,
-  "puppeteerArgs": ["--no-sandbox", "--disable-setuid-sandbox"],
   "contractReportPath": ".twd/contract-report.md",
   "contracts": [
     {
@@ -237,9 +220,9 @@ Add `contractReportPath` and `contracts[]` to the config. Example with one spec 
 }
 ```
 
-Add one entry to `contracts[]` per detected spec. Use the `baseUrl`, `mode`, and `strict` defaults from Step 2.5.
+Do not add `timeout`, `headless`, `puppeteerArgs`, `coverageDir` or `nycOutputDir` — they are twd-cli defaults.
 
-If `twd.config.json` already exists, show its contents and ask if the user wants to update it. When merging contracts into an existing config, preserve any user-customized fields.
+If the file does not exist (setup was skipped), create it with `url` from the detected port and base path, `coverage` per the user's choice, and the contract keys when enabled.
 
 ## Step 5: Configure Vite (Coverage Only)
 
@@ -264,13 +247,15 @@ istanbul({
 
 **Rules:**
 - Add the import at the top with other imports
-- Add the plugin AFTER existing plugins (framework, twdHmr, twdRemote)
+- Add the plugin AFTER existing plugins (framework, twd)
 - Do NOT remove or modify existing plugins
 - Show the user the changes before applying
 
 ## Step 6: Add package.json Scripts
 
-### Always add:
+### `test:ci` (only if missing):
+
+`/twd:setup` normally adds it. If absent:
 
 ```json
 {
@@ -291,7 +276,7 @@ istanbul({
 
 **Rules:**
 - Do NOT overwrite existing scripts without asking
-- If `test:ci` or `dev:ci` already exist, show the conflict and ask the user
+- If `test:ci` exists with a value other than `npx twd-cli run`, or `dev:ci` already exists, show the conflict and ask.
 - Add scripts to the existing `"scripts"` object — do not replace it
 
 ## Step 7: Generate GitHub Actions Workflow
