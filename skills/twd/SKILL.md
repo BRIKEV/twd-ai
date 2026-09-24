@@ -2,7 +2,7 @@
 name: twd
 description: TWD agent — writes deterministic in-browser component/page tests that run against the app's own dev server, runs them headlessly via twd-cli, reads the structured failure, fixes and re-runs until green. Complementary to Playwright/Cypress, not a replacement.
 argument-hint: ["run all tests", "test login page", "write tests for user dashboard"]
-allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(npm install --save-dev twd-js twd-cli), Bash(npx twd-js init *), Bash(npx twd-cli run), Bash(npx twd-cli run *), Bash(curl -s *), Bash(git symbolic-ref *), Bash(git -C * symbolic-ref *), Bash(npx twd-relay run *), Task]
+allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(npm install --save-dev twd-js twd-cli), Bash(npx twd-js init *), Bash(npx twd-cli run), Bash(npx twd-cli run *), Bash(curl -s *), Bash(git symbolic-ref *), Bash(git -C * symbolic-ref *), Bash(npx twd-relay run), Bash(npx twd-relay run *), Task]
 context: fork
 agent: general-purpose
 ---
@@ -40,7 +40,7 @@ You receive a goal and drive the entire process: detect project state, set up TW
 
 The user wants to: $ARGUMENTS
 
-If that goal is empty, the skill was invoked without arguments and the request is not visible to you. Do not pick a page or feature to test on your own. Run Phase 1, then only Phase 4 steps 1, 5 and 6 — probe, one unfiltered run of the existing suite, read the summary — and open your report by saying that no goal was passed to the skill.
+If that goal is empty, the skill was invoked without arguments and the request is not visible to you. Do not pick a page or feature to test on your own. Run Phase 1's checks only — if setup is incomplete, report what is missing and stop. Otherwise run Phase 4 steps 1, 5 and 6 (probe, one unfiltered run of the existing suite even if `twd-patterns.md` says `Closing run: CI`, read the summary). Open your report by saying no goal was passed, and end it by asking the caller to invoke the skill again with the goal as its argument.
 
 ## Workflow
 
@@ -115,7 +115,7 @@ it("should cancel creation and return to the list", async () => { /* ... */ });
 Read `references/running-tests.md` before the first run — it has the commands, how to read the summary, and the diagnostics table.
 
 1. **Probe, don't ask.** Resolve the app URL and probe it with one `curl` (see *Resolving the URL* and *The probe*). Only if nothing answers, tell the user the dev command from `twd-patterns.md` and stop. **Never ask the user to open, focus or watch a browser tab.**
-2. **Scope the first run** to the new file's top-level `describe`: `npx twd-cli run --test "<describe name>"`. The full suite is never the first run.
+2. **Scope the first run** to the new file's top-level `describe`: `npx twd-cli run --test "<describe name>"`. The full suite is never the first run. If the goal is only to run the existing tests, there is no new file: do steps 1, 5 and 6, then fix any failures with steps 3 and 6.
 3. **Fix loop.** For each failure: re-run it alone with `--test`, read the error and the `mock rules` row, read the test, the component and the API layer, fix the root cause, re-run the same command. Same error after 3 attempts → `it.skip()` with a `// SKIPPED: <reason>` comment above it.
 4. **Branch check:** `npx twd-cli run --changed-since origin/<default branch>`. If the ref is not in the clone, skip this step and say so in the report.
 5. **Closing run:** `npx twd-cli run` with no filter, unless `twd-patterns.md` says `Closing run: CI`.
@@ -128,7 +128,7 @@ Summarize:
 - What's covered (pages, features, interactions)
 - Fixes applied (what was wrong, how it was fixed)
 - Skipped tests and why
-- **Retried tests** — each one with its attempt number. A green run with retries is not a clean run
+- **Retried tests** — each one with its attempt number, or state that there were none. A green run with retries is not a clean run
 - Final pass/fail status of the closing run, or why it did not run
 - An offer to record the tests you wrote (`npx twd-cli run --record --test "<exact it() title>"`), so a reviewer can watch them. Do not record unasked.
 

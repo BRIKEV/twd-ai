@@ -10,6 +10,10 @@ foreground. Never switch to it because twd-cli takes a few seconds to launch.
 
 ## Install
 
+If twd-relay is missing, show the user these steps and ask before applying
+them — the twd skill does not install packages beyond twd-js and twd-cli on
+its own.
+
 ```bash
 npm install --save-dev twd-relay
 ```

@@ -48,19 +48,21 @@ npx twd-cli run
 
 `<default>` is the default branch from `twd-patterns.md`, or
 `git symbolic-ref --short refs/remotes/origin/HEAD` (strip `origin/`), falling
-back to `main`. If the project has no remote, or `--changed-since` reports the
-ref is not in the clone, skip the branch check and say so in the report.
+back to `main`. If `--changed-since` fails for any git reason — no remote, ref
+not in the clone, not a git repository — skip the branch check and say so in
+the report.
 
 The closing run always happens unless `twd-patterns.md` says `Closing run: CI`.
 Never pass a filtered or `--changed-since` run off as the full suite.
 
-A `--test` filter that matches nothing exits 1 and lists the available
-describe-paths. `npx twd-cli run --help` lists every flag.
+A `--test` filter that matches nothing exits 1 with `No tests matched
+filter(s): …` — grep the test files for the exact describe or it title.
+`npx twd-cli run --help` lists every flag.
 
 ## Reading the output
 
 Every run ends with one block. It is the whole answer — never pipe through
-`tee`, never grep for `✓`, never count lines.
+`tee`, `head` or `tail`, never grep for `✓`, never count lines.
 
 ```
 --- Run complete ---
@@ -86,6 +88,8 @@ Every run ends with one block. It is the whole answer — never pipe through
 - **`Mocks validated: … | Errors: n`** and lines like
   `✗ GET /api/todos (200) — mock "todos"` are contract validation, not test
   failures.
+- **`⚠ Stopped early: reached the failure limit`** — the run stopped after the
+  listed failures; fix them before looking for more.
 
 ## The `mock rules` diagnostic
 
@@ -140,10 +144,10 @@ it unasked.
 |---|---|---|
 | `Could not reach <url> (ERR_CONNECTION_REFUSED)` | Dev server not running, or the wrong URL | Tell the user the dev command. If the app is on another port or path, fix `url` in `twd.config.json` |
 | `Page loaded but the TWD sidebar (#twd-sidebar-root) did not appear` | `twd()` plugin missing from the Vite config, or gated behind an env flag the dev command did not set | Check `vite.config.*` and the dev command in `twd-patterns.md` |
-| `No tests matched filter(s)` | Typo in `--test`, or the file is not discovered | Use a path from the listed tests. For a new `.tsx` file check `testFilePattern` |
+| `No tests matched filter(s)` | Typo in `--test`, or the file is not discovered | Grep the test files for the exact title. For a new `.tsx` file check `testFilePattern` |
 | `A single chunk of tests exceeded Puppeteer's protocolTimeout` | One hanging test | Isolate with `--test`; look for an un-awaited promise or an element that never appears |
 | A failing test takes ~12 s | twd-js retries a failing assertion until its timeout, then reports it | Read the error. A value that will never change on retry is a wrong expectation, not a timing problem |
-| `--changed-since <ref>: <ref> is not in this clone` | No remote, shallow clone, or base branch not fetched | Skip the branch check locally; in CI set `fetch-depth: 0` |
+| `--changed-since <ref>: <ref> is not in this clone` | No remote, shallow clone, base branch not fetched, or any other git error | Skip the branch check locally; in CI set `fetch-depth: 0` |
 | `Unable to find role X` | Element missing or has a different role | Check the component markup; use the correct role/name |
 | `Unable to find an element with the text` | Text differs or has not rendered yet | Use a regex (`/text/i`) or `findByText` for async content |
 | `Expected X to equal Y` | Mock data does not match the expected shape | Update the mock data or the expected value |

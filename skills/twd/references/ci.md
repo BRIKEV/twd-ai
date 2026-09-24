@@ -458,8 +458,8 @@ jobs:
   record:
     if: github.event.label.name == 'record'
     runs-on: ubuntu-latest
-    # Belt, not workaround: a recording must never cost a caller more than a
-    # recording.
+    # Belt, not workaround: the CLI already guards against hangs, but a
+    # recording must never cost a caller more than a recording.
     timeout-minutes: 15
     permissions:
       contents: read
