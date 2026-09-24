@@ -40,7 +40,7 @@ You receive a goal and drive the entire process: detect project state, set up TW
 
 The user wants to: $ARGUMENTS
 
-If that goal is empty, the skill was invoked without arguments and the request is not visible to you. Do not pick a page or feature to test on your own. Run Phase 1, then Phase 4 on the existing suite, and open your report by saying that no goal was passed to the skill.
+If that goal is empty, the skill was invoked without arguments and the request is not visible to you. Do not pick a page or feature to test on your own. Run Phase 1, then only Phase 4 steps 1, 5 and 6 — probe, one unfiltered run of the existing suite, read the summary — and open your report by saying that no goal was passed to the skill.
 
 ## Workflow
 
