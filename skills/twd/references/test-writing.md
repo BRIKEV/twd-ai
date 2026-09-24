@@ -2,7 +2,7 @@
 
 TWD (Test While Developing) is a **deterministic, in-browser testing tool** that runs inside the app's own Vite dev server. Tests are deterministic because all external dependencies — network requests, third-party providers, viewport size — are mocked or controlled by the test. It is **complementary to Playwright/Cypress** — use TWD for fast component and page-level tests with mocked APIs during development; use Playwright/Cypress for full E2E flows across pages, real network, and cross-browser validation. Do NOT treat TWD as a Playwright replacement or write Playwright-style tests with it.
 
-> **Runners**: TWD has two runners — **`twd-relay`** (dev) connects via WebSocket to the browser tab you already have open, and **`twd-cli`** (CI) launches a headless browser via Puppeteer. Both execute the same tests. See `running-tests.md` for details.
+> **Runner**: tests run headlessly with **`twd-cli`** against the running dev server (`npx twd-cli run`). See `running-tests.md`. Watching a run live in your own tab is opt-in through twd-relay — see `relay.md`.
 
 ## Quick Reference
 
@@ -738,4 +738,4 @@ This works for any third-party provider (feature flags, analytics, auth). It avo
 15. **Not resetting app state between tests** — TWD runs without page reloads, so store state, localStorage, and module singletons persist. Always reset in `beforeEach`
 16. **Using regex when string match suffices** — string matching is boundary-aware: `/api/users` won't match `/api/users/123` or `/api/items`. For dynamic IDs, hardcode the mock value (e.g., `url: "/api/users/456"`). Only use `urlRegex: true` when the segment is truly unpredictable at mock time
 17. **Using `rule.request.body` instead of `rule.request`** — `waitForRequest` returns a rule where `.request` IS the parsed body directly. Writing `rule.request.body.X` throws `Cannot read properties of undefined`. Correct: `expect(rule.request).to.deep.equal({ ... })`
-18. **Using `it.only()` to isolate tests** — use `npx twd-relay run --test "name"` instead, which doesn't require editing the test file and avoids the risk of forgetting to remove `it.only()`
+18. **Using `it.only()` to isolate tests** — use `npx twd-cli run --test "name"` instead, which doesn't require editing the test file and avoids the risk of forgetting to remove `it.only()`

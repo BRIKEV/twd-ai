@@ -6,43 +6,22 @@
 
 ## twd-cli: Headless Test Runner
 
-`twd-cli` runs TWD tests in a headless browser — no open browser tab required.
+`twd-cli` is the same runner the agent uses locally. `/twd:setup` installs it,
+creates `twd.config.json` and adds `"test:ci": "npx twd-cli run"`. CI setup only
+installs it if missing and merges CI fields into the existing config.
 
-### Install
-
-```bash
-npm install --save-dev twd-cli
-```
-
-### Configuration: `twd.config.json`
-
-Create `twd.config.json` in the project root only if user confirms adding that file as this file is not required for twd-cli to work.
-
-```json
-{
-  "url": "http://localhost:5173",
-  "timeout": 10000,
-  "coverage": true,
-  "coverageDir": "./coverage",
-  "nycOutputDir": "./.nyc_output",
-  "headless": true,
-  "puppeteerArgs": ["--no-sandbox", "--disable-setuid-sandbox"]
-}
-```
-
-**Options:**
+### CI fields in `twd.config.json`
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `url` | string | `"http://localhost:5173"` | Dev server URL to open before running tests |
-| `timeout` | number | `10000` | Milliseconds to wait for the page/sidebar |
-| `coverage` | boolean | `true` | Toggle code coverage collection |
+| `url` | string | `"http://localhost:5173"` | Written by setup. Keep it; CI serves the app on the same URL |
+| `coverage` | boolean | `true` | Setup writes `false`; set `true` when coverage is configured below |
 | `coverageDir` | string | `"./coverage"` | Output folder for coverage reports |
 | `nycOutputDir` | string | `"./.nyc_output"` | NYC temp folder |
-| `headless` | boolean | `true` | Run Chrome in headless mode |
-| `puppeteerArgs` | string[] | `["--no-sandbox", "--disable-setuid-sandbox"]` | Extra arguments for Puppeteer |
+| `contracts` | array | — | OpenAPI contract validation (see *Contract Validation*) |
+| `contractReportPath` | string | — | Markdown contract report for the PR comment |
 
-> **Note**: If the project has a custom Vite base path or port, update the `url` accordingly.
+Only write keys that differ from these defaults.
 
 ### Run
 
@@ -50,15 +29,8 @@ Create `twd.config.json` in the project root only if user confirms adding that f
 npx twd-cli run
 ```
 
-Exit code 0 = all passed, 1 = failures.
-
-To run a subset locally, use the repeatable `--test` flag — a case-insensitive substring match against each test's full `"Describe > test name"` path, so a describe name runs everything under it:
-
-```bash
-npx twd-cli run --test "Login" --test "Signup"
-```
-
-If nothing matches, the run exits 1 and prints `No tests matched filter(s): …`. Coverage collection is skipped during filtered runs.
+Exit code 0 = all passed, 1 = failures. `--test` takes the same describe-path
+filter as locally; coverage is skipped on filtered runs.
 
 ---
 
@@ -447,8 +419,7 @@ whole thing — a known-good ffmpeg, the run, the artifact upload — into one s
 The payoff is a reviewer downloading one clip per test the branch added, straight
 from the pull request.
 
-Requires `twd-cli` **1.8.0 or newer**. 1.7.0 shipped the action, but its artifact
-upload failed on default inputs and its CLI version was unpinned.
+Pin the `record` action to a tag or commit SHA; it fetches its own pinned CLI.
 
 ### When to enable
 
@@ -487,8 +458,8 @@ jobs:
   record:
     if: github.event.label.name == 'record'
     runs-on: ubuntu-latest
-    # Belt, not workaround: the hang class is fixed in the CLI, but a recording
-    # must never cost a caller more than a recording.
+    # Belt, not workaround: a recording must never cost a caller more than a
+    # recording.
     timeout-minutes: 15
     permissions:
       contents: read
