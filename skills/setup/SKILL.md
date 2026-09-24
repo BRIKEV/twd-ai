@@ -2,7 +2,7 @@
 name: setup
 description: Configures TWD for a project — detects settings, generates .claude/twd-patterns.md, installs twd-js and twd-cli, writes twd.config.json, and wires up the twd() Vite plugin (or the manual initTWD entry-file approach for non-Vite projects)
 disable-model-invocation: true
-allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(npm install *), Bash(npx twd-js init *), AskUserQuestion]
+allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(npm install *), Bash(npx twd-js init *), Bash(git symbolic-ref *), Bash(git -C * symbolic-ref *), AskUserQuestion]
 ---
 
 # TWD Project Setup
@@ -40,6 +40,8 @@ Read these files to pre-fill answers (read all in parallel):
 
    Edge case — Astro: Astro projects use Vite under the hood but configure plugins in `astro.config.mjs` under `vite.plugins`. If `astro.config.*` exists, treat as Vite (`isVite = true`) and adapt Step 4 sub-step 4 to write into `astro.config.mjs`'s `vite.plugins` block.
 
+   For non-Vite projects, read the dev port from the framework config instead — Angular CLI: `angular.json` → `projects.<name>.architect.serve.options.port`, default `4200`. The App URL (Step 2) and `twd.config.json`'s `url` (Step 4) must use that same port.
+
 3. **`index.html`** — detect entry point from `<script>` src attribute
 
 4. **Glob for `src/services/`, `src/api/`, `src/lib/api`** — detect API/services folder
@@ -63,7 +65,7 @@ Read these files to pre-fill answers (read all in parallel):
 
    These libraries cache fetched data at the module level. Because `twd.visit(...)` is an SPA navigation (no page reload), the cache survives across tests and the **second** test against a fetching page will short-circuit on cached data instead of calling `fetch` — meaning TWD mocks never match and tests fail with misleading "rule not executed" errors. Step 2 Batch 2 asks the user how to reset whichever cache is in use.
 
-8. **Check if `.claude/twd-patterns.md` already exists** — offer to update vs overwrite
+8. **Check if `.claude/twd-patterns.md` already exists** — offer to update vs overwrite. When updating, replace an old `### Relay Commands` section with Runner Commands and add any missing Project Configuration lines (App URL, Dev command, Default branch, Closing run).
 
 9. **Dev command** — scan `package.json` scripts for a companion service the app needs before it renders: a `serve`, `serve:dev`, `mock*` or `api*` script, or anything invoking `json-server`. If one exists and a script starts both (typically `serve:dev`), the dev command is `npm run serve:dev`; otherwise `npm run dev`.
 
@@ -276,9 +278,9 @@ const modal = screenDomGlobal.getByRole("dialog");
 - Omit the `THIRD_PARTY_STUBS` comment in beforeEach if no third-party modules
 - Omit `Sinon.restore()` in beforeEach if no third-party modules need stubbing — Sinon is ONLY needed when the user has external modules to stub
 
-## Step 4: Optionally Run Setup
+## Step 4: Install and Wire TWD
 
-After generating the config file, check if TWD is already installed. If not, ask the user if they want to run setup now:
+Using Step 1 item 11 and the entry-file and Vite-config checks, list which of the sub-steps below are already done, then offer only the missing ones. An existing TWD install is the normal case when upgrading — it still needs `twd-cli`, `twd.config.json` and `test:ci` if those are missing.
 
 1. `npm install --save-dev twd-js twd-cli` — skip packages already in `devDependencies`.
 

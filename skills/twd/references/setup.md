@@ -46,7 +46,9 @@ export default defineConfig({
 `twd()` discovers test files, mounts the sidebar through an injected
 `<script>`, registers the mock service worker, and respects Vite `base`. It only
 runs in `vite dev`, so production builds are untouched. If a previous setup left
-an `initTWD(...)` block in the entry file, delete it — the plugin replaces it.
+an `initTWD(...)` block in the entry file, offer to delete it — the plugin
+replaces it. Leave any `twdRemote()` or `createBrowserClient(` wiring
+untouched; it belongs to twd-relay.
 
 ### Angular and other non-Vite bundlers
 

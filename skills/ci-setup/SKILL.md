@@ -276,7 +276,7 @@ istanbul({
 
 **Rules:**
 - Do NOT overwrite existing scripts without asking
-- If `test:ci` or `dev:ci` already exist, show the conflict and ask the user
+- If `test:ci` exists with a value other than `npx twd-cli run`, or `dev:ci` already exists, show the conflict and ask.
 - Add scripts to the existing `"scripts"` object — do not replace it
 
 ## Step 7: Generate GitHub Actions Workflow
