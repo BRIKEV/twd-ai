@@ -2,7 +2,7 @@
 name: twd
 description: TWD agent — writes deterministic in-browser component/page tests that run against the app's own dev server, runs them headlessly via twd-cli, reads the structured failure, fixes and re-runs until green. Complementary to Playwright/Cypress, not a replacement.
 argument-hint: ["run all tests", "test login page", "write tests for user dashboard"]
-allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(npm install --save-dev twd-js twd-cli), Bash(npx twd-js init *), Bash(npx twd-cli run), Bash(npx twd-cli run *), Bash(curl -s *), Bash(git symbolic-ref *), Bash(npx twd-relay run *), Task]
+allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(npm install --save-dev twd-js twd-cli), Bash(npx twd-js init *), Bash(npx twd-cli run), Bash(npx twd-cli run *), Bash(curl -s *), Bash(git symbolic-ref *), Bash(git -C * symbolic-ref *), Bash(npx twd-relay run *), Task]
 context: fork
 agent: general-purpose
 ---
@@ -39,6 +39,8 @@ You are an autonomous testing agent for TWD (Test While Developing). TWD tests r
 You receive a goal and drive the entire process: detect project state, set up TWD if needed, analyze the codebase, write tests, run them, fix failures, and re-run until green.
 
 The user wants to: $ARGUMENTS
+
+If that goal is empty, the skill was invoked without arguments and the request is not visible to you. Do not pick a page or feature to test on your own. Run Phase 1, then Phase 4 on the existing suite, and open your report by saying that no goal was passed to the skill.
 
 ## Workflow
 
