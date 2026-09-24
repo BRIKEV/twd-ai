@@ -1,136 +1,115 @@
 # TWD Test Running Reference
 
-<!-- Network scope: twd-relay operates exclusively on localhost via the local Vite dev server WebSocket.
-     No external network connections are made. Dev-only dependency (--save-dev). -->
+<!-- Network scope: twd-cli launches a local headless Chrome (Puppeteer) against the local dev server.
+     No external network connections. Dev-only dependency (--save-dev). -->
 
-## Running Tests via twd-relay
+twd-cli launches its own headless browser against the running dev server. Only
+the dev server has to be up — no tab, no focus, nothing for the user to watch.
+To watch a run live instead, see `relay.md`; do not reach for it otherwise.
 
-`twd-relay` always runs ALL test files. There is no single-file execution flag.
+## Resolving the URL
+
+`url` in `twd.config.json`, otherwise `http://localhost:5173` plus the base
+path from `.claude/twd-patterns.md`. twd-cli reads the same file, so the probe
+and the run always target the same server. If the app moved to another port,
+fix `url` in `twd.config.json`.
+
+## The probe
+
+One tool call, reachability only:
 
 ```bash
-# Default (Vite default port 5173, base path /)
-npx twd-relay run
-
-# Custom port and/or base path
-npx twd-relay run --port 5173 --path "/my-app/__twd/ws"
+curl -s --max-time 3 -o /dev/null -w '%{http_code}' <url>
 ```
 
-`--port` and `--path` are optional — omit them if the project uses Vite defaults.
+- **Any HTTP status** (200, 302, even 404) means the server is up. Proceed.
+- **`000`** means nothing answered. Tell the user the dev command from
+  `twd-patterns.md` (for example `npm run serve:dev`) and the URL, then stop.
+  Ask once. Do not poll.
 
-Exit code 0 = all passed, 1 = failures.
+Never ask about a browser tab or whether TWD is enabled — if TWD is not
+active, twd-cli says so and names the fix (see *Diagnostics*).
 
-## Running Specific Tests
-
-Use `--test` to isolate tests by name. Matching is a **case-insensitive substring of the full describe-path** (`"Describe > nested > test name"`):
-
-```bash
-# Run tests matching "should show error"
-npx twd-relay run --test "should show error"
-
-# Passing a describe name runs every test under it
-npx twd-relay run --test "Login page"
-
-# Cross-boundary filters spanning describe and it names also work
-npx twd-relay run --test "login flow > shows error"
-
-# Run multiple specific tests (OR logic — matches any)
-npx twd-relay run --test "login" --test "signup"
-```
-
-When no tests match the filter, the CLI lists the available tests as full describe-paths so you can construct a working retry.
-
-## Running Tests Headlessly (CI)
-
-For CI/headless execution without a browser open:
+## Cadence
 
 ```bash
+# First run after writing a file — the describe name runs the whole file
+npx twd-cli run --test "Todo list"
+
+# Isolating a failure (repeatable, OR'd)
+npx twd-cli run --test "should create a todo" --test "should show the error"
+
+# Everything this branch added or changed
+npx twd-cli run --changed-since origin/<default>
+
+# Closing run — unfiltered
 npx twd-cli run
 ```
 
-This launches a headless browser, runs all tests, and reports results. Configure via `twd.config.json` in the project root.
+`<default>` is the default branch from `twd-patterns.md`, or
+`git symbolic-ref --short refs/remotes/origin/HEAD` (strip `origin/`), falling
+back to `main`. If the project has no remote, or `--changed-since` reports the
+ref is not in the clone, skip the branch check and say so in the report.
 
-`twd-cli` supports the same `--test` filter with the same describe-path semantics:
+The closing run always happens unless `twd-patterns.md` says `Closing run: CI`.
+Never pass a filtered or `--changed-since` run off as the full suite.
 
-```bash
-npx twd-cli run --test "Login" --test "Signup"
-```
+A `--test` filter that matches nothing exits 1 and lists the available
+describe-paths. `npx twd-cli run --help` lists every flag.
 
-Notes: if no test matches, the run exits 1 and prints `No tests matched filter(s): …` — a typo won't silently look like a pass. Code coverage collection is skipped while a `--test` filter is active (filtered runs are partial/debug runs).
+## Reading the output
 
-## MANDATORY Pre-Flight Check — DO NOT SKIP
-
-**Tests WILL fail silently or hang if these conditions are not met.**
-
-Before running `npx twd-relay run`, **ALL** of the following must be true:
-
-1. **The dev server MUST be running** — run `npm run dev` (or your project's dev command) in a separate terminal. The relay connects to the Vite dev server via WebSocket — without it, the relay has nothing to connect to.
-2. **The app MUST be open in a browser tab** — navigate to `http://localhost:PORT` (e.g., `http://localhost:5173`). TWD tests execute inside the browser — if no tab is open, the relay cannot dispatch tests.
-3. **`twd-relay` is installed** — `npm install --save-dev twd-relay`
-4. **`twdRemote()` plugin is in `vite.config.ts`** — see setup reference
-5. **Browser relay client is connected** — for **Vite projects**, this happens automatically when `twdRemote()` is in `vite.config.ts` (it injects a connect script via `transformIndexHtml`). For **non-Vite projects** (Angular CLI, Webpack/CRA, etc.), the entry point must still include the manual `createBrowserClient` block (see setup reference Step 3, Angular path). If a Vite project also has a manual `createBrowserClient` block in the entry file, you'll see **two clients** in the relay logs — fix by deleting the manual block or passing `autoConnect: false` to `twdRemote()`.
-
-> **If the relay exits immediately or times out**, the #1 cause is that the dev server is not running or the browser tab is not open. Always check these first.
-
-## Reading Failures
-
-When tests fail, the output includes:
-- **Test name** — which `describe` > `it` block failed
-- **Error message** — what assertion failed or what error was thrown
-- **Expected vs Actual** — for assertion mismatches
-
-### The `mock rules` diagnostic
-
-`twd-js` 1.10.0 and newer attach a snapshot to a failing test, and `twd-cli`
-prints it as a row **above** the error message (the error itself can carry a full
-accessible-roles dump that would bury it):
+Every run ends with one block. It is the whole answer — never pipe through
+`tee`, never grep for `✓`, never count lines.
 
 ```
-Failed tests (1):
-  × Inquiries > should list the company group inquiries
+--- Run complete ---
+  Passed: 41 | Failed: 1 | Skipped: 0
+  Duration: 38.2s
+
+  Failed tests (1):
+    × Todo list > should create a todo
+      mock rules  2/3 triggered — createTodo never requested
+      AssertionError: expected 3 rows to have length 4
+
+  Retried (1):
+    ✓ Todo list > should filter completed (passed on attempt 2)
+```
+
+- **`Failed tests (n)`** — the failures, each with its describe-path, the
+  `mock rules` row when the test registered mocks, and the error.
+- **`Retried (n)`** — passed only on a later attempt. Each one is a finding.
+  If you wrote or touched the test, fix it like a failure: usually a missing
+  `await twd.waitFor(...)`, state not reset in `beforeEach`, or a mock
+  registered after `visit`. Otherwise list it in the report with its attempt
+  number. A green run with retries is not a clean run.
+- **`Mocks validated: … | Errors: n`** and lines like
+  `✗ GET /api/todos (200) — mock "todos"` are contract validation, not test
+  failures.
+
+## The `mock rules` diagnostic
+
+A failing test that registered mock rules gets a row above its error:
+
+```
     mock rules  6/7 triggered — catalog never requested
-    AssertionError: expected 0 rows (at http://localhost:5173/cg-1/settings/catalog)
 ```
 
-Read that as: of 7 registered mock rules, 6 were actually requested by the app
-and `catalog` never was. A rule that never fires usually means its URL or method
-does not match what the app requests — a much faster lead than the assertion
-message, because it names the mock rather than the symptom.
+Of 7 registered rules, 6 were requested by the app and `catalog` never was. A
+rule that never fires usually means its URL or method does not match what the
+app requests — a faster lead than the assertion, because it names the mock.
+With several misses it expands, capped at five. The row is absent when the test
+registered no rules.
 
-With several misses it expands, capped at five:
+**Do not trust that row on a full-suite run.** It reads the global rule
+registry, which nothing resets between tests unless the project clears it, so
+rules from earlier tests are counted and blamed on this one.
 
-```
-    mock rules  1/4 triggered — 2 never requested
-                ✗ catalog
-                ✗ profile
-```
-
-The row is **absent** when the test registered no rules at all. "This test mocks
-nothing" is the default, not a diagnostic — you will never see `0/0`.
-
-### DO NOT trust that row on a full-suite run
-
-The snapshot reads the **global** mock-rule registry, and nothing in `twd-js`
-resets it between tests. Unless the project clears rules in an `afterEach`, rules
-registered by *earlier* tests are still counted, and the failing test gets blamed
-for aliases that have nothing to do with it.
-
-Measured on a real run of three failing tests, where the third registers zero
-mocks of its own:
-
-```
-× ... no mock rules registered at all     mock rules  0/4 triggered — 4 never requested
-```
-
-Run in isolation that same test correctly prints no row at all. So:
-
-1. **Re-run the one test alone before acting on the row** —
-   `npx twd-relay run --test "the failing test"`. In isolation the snapshot is
-   accurate.
-2. If the aliases change or disappear, the full-suite row was bleed from earlier
-   tests. Ignore it and debug the assertion instead.
-3. The durable fix belongs in the project's test setup, not in the test that
-   failed. `afterEach` comes from `twd-js/runner` and must sit inside a
-   `describe()`:
+1. Re-run the one test alone with `npx twd-cli run --test "the failing test"`.
+   In isolation the row is accurate.
+2. If the aliases change or disappear, it was bleed. Debug the assertion.
+3. The durable fix is in the test setup. `afterEach` comes from `twd-js/runner`
+   and must sit inside a `describe()`:
 
    ```ts
    import { describe, it, afterEach } from "twd-js/runner";
@@ -144,44 +123,33 @@ Run in isolation that same test correctly prints no row at all. So:
    });
    ```
 
-   Suggest it when a project's tests have no such cleanup — it makes the
-   diagnostic trustworthy for every future failure rather than just this one.
+## Seeing a test
 
-## Common Failures and Fixes
+```bash
+npx twd-cli run --record --test "<exact it() title>"
+```
 
-| Error | Likely Cause | Fix |
-|-------|-------------|-----|
-| "Unable to find role X" | Element doesn't exist or has wrong role | Check component markup, use correct role/name |
-| "Unable to find an element with the text" | Text doesn't match or element hasn't rendered | Use regex (`/text/i`), or switch to `findByText` for async |
-| "Expected X to equal Y" | Mock data doesn't match expected shape | Update mock data or expected value |
-| "Timed out waiting for element" | Element loads async, using `getBy` instead of `findBy` | Switch to `await screenDom.findByRole(...)` |
-| "Request not intercepted" | Mock URL doesn't match actual request | Use `twd.getRequestCounts()` to check if the mock was hit at all. If count is 0, the URL or method isn't matching. Verify the string URL matches (boundary-aware). For dynamic IDs, hardcode the mock value. Only use `urlRegex: true` as last resort |
-| "Cannot read property of null" | Missing `await` on async method | Add `await` before `twd.get()`, `userEvent.*`, etc. |
-| "twd.mockRequest is not a function" | Service worker not initialized | Ensure `serviceWorker: true` in `initTWD` options |
-| Assertion fails intermittently (element found but wrong attribute/text/state) | Race condition — render hasn't completed yet | Wrap in `await twd.waitFor(() => ...)` with the failing assertion or selector. See `test-writing.md` "waitFor vs twd.wait" for guidance |
-| `Run aborted: test "…" ran for Xs — threshold exceeded` | Browser tab is backgrounded/minimized → Chrome is throttling timers → tests run 5–30× slower than normal | Foreground the TWD tab (identified by the `[TWD …]` title prefix) and rerun. For unattended runs, switch to `npx twd-cli run` which uses a headless browser not subject to tab throttling. Raise the threshold with `npx twd-relay run --max-test-duration 15000` if a test legitimately needs longer. |
-| `mock rules  0/N triggered — N never requested` on a test that registers no mocks | Mock-rule bleed from earlier tests. The snapshot reads the global registry and nothing resets it between tests | Re-run that test alone with `--test` — the row is accurate in isolation. Add `afterEach(() => twd.clearRequestMockRules())` to fix it for the whole suite. See "Reading Failures" above |
-| `[RUN_IN_PROGRESS] A test run is already in progress…` | Previous run still locked on the relay. Usually the TWD tab was backgrounded during the prior run and is still slowly completing it. | Foreground the TWD tab (identified by the `[TWD …]` title prefix) to speed completion. The relay auto-clears the lock after 120 s of heartbeat silence, or reload the TWD tab to force-reset. Don't kill/restart the relay — it won't help. |
+Writes one clip per matched test to `twd-artifacts/`. Needs ffmpeg on the PATH;
+twd-cli checks the binary before launching anything and says what is missing.
+This is how a human reviews what you built. Offer it in the report; do not run
+it unasked.
 
-## Recovery from Aborted or Stuck Runs
+## Diagnostics
 
-Chrome throttles timers in backgrounded tabs, which can stretch a ~1 s test run to 20+ seconds. To avoid hangs, the browser client aborts any run where a single test exceeds **5 seconds** by default (configurable via `--max-test-duration <ms>`). When this fires, the CLI prints `Run aborted: …` and exits 1.
-
-**When you see `run:aborted` or a stuck `RUN_IN_PROGRESS`:**
-
-- Tell the user to foreground the TWD browser tab. The tab's title is prefixed with `[TWD]` when the relay is connected, which helps them identify it among other tabs to the same origin.
-- If the user needs unattended/CI execution, recommend `npx twd-cli run` — it uses a headless Chrome where tab throttling doesn't apply.
-- Don't retry in a loop. The root cause is the tab losing focus; a retry without user action will abort again.
-- Don't kill/restart the relay. The lock auto-clears after 120 s of heartbeat silence, or the user can reload the tab.
-
-## Debugging Tips
-
-- Use `npx twd-relay run --test "test name"` to isolate a single test
-- Add `await twd.wait(2000)` to pause and visually inspect the page
-- If a test fails intermittently due to timing, use `await twd.waitFor(() => ...)` to retry until the condition is met — don't replace it with a blind `twd.wait(ms)`
-- Check the browser console for JavaScript errors
-- Verify mock URLs match by reading the API/service layer code
-- **When `waitForRequest` times out**, use `twd.getRequestCounts()` to diagnose:
-  - Count is 0 → the mock URL or method isn't matching the actual request
-  - Count is > 0 → the mock matched but `waitForRequest` was called before/after the request fired
-  - `twd.getRequestCount("alias")` checks a single mock; `twd.getRequestCounts()` returns all as `{ alias: count, ... }`
+| Output | Likely cause | Fix |
+|---|---|---|
+| `Could not reach <url> (ERR_CONNECTION_REFUSED)` | Dev server not running, or the wrong URL | Tell the user the dev command. If the app is on another port or path, fix `url` in `twd.config.json` |
+| `Page loaded but the TWD sidebar (#twd-sidebar-root) did not appear` | `twd()` plugin missing from the Vite config, or gated behind an env flag the dev command did not set | Check `vite.config.*` and the dev command in `twd-patterns.md` |
+| `No tests matched filter(s)` | Typo in `--test`, or the file is not discovered | Use a path from the listed tests. For a new `.tsx` file check `testFilePattern` |
+| `A single chunk of tests exceeded Puppeteer's protocolTimeout` | One hanging test | Isolate with `--test`; look for an un-awaited promise or an element that never appears |
+| A failing test takes ~12 s | twd-js retries a failing assertion until its timeout, then reports it | Read the error. A value that will never change on retry is a wrong expectation, not a timing problem |
+| `--changed-since <ref>: <ref> is not in this clone` | No remote, shallow clone, or base branch not fetched | Skip the branch check locally; in CI set `fetch-depth: 0` |
+| `Unable to find role X` | Element missing or has a different role | Check the component markup; use the correct role/name |
+| `Unable to find an element with the text` | Text differs or has not rendered yet | Use a regex (`/text/i`) or `findByText` for async content |
+| `Expected X to equal Y` | Mock data does not match the expected shape | Update the mock data or the expected value |
+| `Timed out waiting for element` | Async element queried with `getBy` | Use `await screenDom.findByRole(...)` |
+| `Rule "alias" was not executed` | Mock URL or method does not match the real request, or `waitForRequest` ran before/after it fired | `twd.getRequestCounts()`: 0 means the mock never matched, > 0 means a timing problem. Verify the string URL (boundary-aware). Hardcode dynamic IDs. `urlRegex: true` only as a last resort |
+| `Cannot read property of null` | Missing `await` | Add `await` before `twd.get()`, `userEvent.*`, etc. |
+| `twd.mockRequest is not a function` | Service worker not initialized | Check `public/mock-sw.js` exists and `serviceWorker` is not disabled |
+| Assertion fails intermittently, or shows under `Retried` | Render not finished when asserted | Wrap the check in `await twd.waitFor(() => ...)`. Not preemptively — only for a test that failed on timing. See `test-writing.md` "waitFor vs twd.wait" |
+| `mock rules 0/N triggered` on a test that registers no mocks | Rule bleed from earlier tests | See *The `mock rules` diagnostic* |
