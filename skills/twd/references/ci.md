@@ -53,7 +53,7 @@ import istanbul from "vite-plugin-istanbul";
 
 export default defineConfig({
   plugins: [
-    // ... other plugins (framework plugin, twdHmr, twdRemote, etc.)
+    // ... other plugins (framework plugin, twd, etc.)
     istanbul({
       include: "src/*",
       exclude: ["node_modules", "**/*.twd.test.ts"],
