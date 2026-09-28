@@ -19,7 +19,7 @@ installs it if missing and merges CI fields into the existing config.
 | `coverageDir` | string | `"./coverage"` | Output folder for coverage reports |
 | `nycOutputDir` | string | `"./.nyc_output"` | NYC temp folder |
 | `contracts` | array | — | OpenAPI contract validation (see *Contract Validation*) |
-| `contractReportPath` | string | — | Markdown contract report for the PR comment |
+| `report` | object \| `false` | `{ "dir": ".twd/report", "formats": ["html", "markdown"] }` | Run report folder. Leave the default |
 
 Only write keys that differ from these defaults.
 
@@ -31,6 +31,24 @@ npx twd-cli run
 
 Exit code 0 = all passed, 1 = failures. `--test` takes the same describe-path
 filter as locally; coverage is skipped on filtered runs.
+
+Every run writes `.twd/report/` (`run.json`, `summary.md`, `index.html`), in CI
+as locally. The `run` action writes `summary.md` to the job summary and uploads
+the folder as the `twd-report` artifact, both even on a red run. In a custom
+workflow, do the same yourself:
+
+```yaml
+      - name: TWD job summary
+        if: always()
+        run: npx twd-cli report --format markdown >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload TWD report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: twd-report
+          path: .twd/report
+```
 
 ---
 
@@ -356,7 +374,6 @@ Enable if the project ships an OpenAPI spec (commonly at `contracts/*.json` or `
 
 ```json
 {
-  "contractReportPath": ".twd/contract-report.md",
   "contracts": [
     {
       "source": "./contracts/<spec>.json",
@@ -376,7 +393,9 @@ Enable if the project ships an OpenAPI spec (commonly at `contracts/*.json` or `
 | `baseUrl` | string | `"/"` | Base URL prefix stripped when matching mock URLs to spec paths |
 | `mode` | `"error"` \| `"warn"` | `"warn"` | `error` fails the run, `warn` reports only |
 | `strict` | boolean | `false` | When `true`, unexpected properties are rejected |
-| `contractReportPath` | string | — | Path (relative to project root) for the markdown report posted as a PR comment |
+
+Do not set `contractReportPath`. It is deprecated and prints a warning on every
+run; contract results are in the run report's `summary.md`.
 
 ### Workflow additions
 
@@ -396,19 +415,19 @@ And enable the report on the action:
     contract-report: 'true'
 ```
 
-The composite action reads `contractReportPath` from `twd.config.json` and posts the contents as a PR comment when `contract-report: 'true'`.
+With `contract-report: 'true'` the composite action posts the run report's `summary.md` as a PR comment.
 
 ### `.gitignore`
 
-The report directory is generated output:
+The report folder is generated output on every run, contracts or not:
 
 ```
-.twd
+.twd/
 ```
 
 ### Custom (non-action) workflows
 
-The `contract-report: 'true'` input is specific to the `BRIKEV/twd-cli/.github/actions/run` composite action. With a custom workflow, `twd-cli run` will still validate contracts and write `.twd/contract-report.md` (if `contractReportPath` is set), but you'll need to upload it as a build artifact or post the comment yourself — there's no built-in PR comment posting outside the action.
+The `contract-report: 'true'` input is specific to the `BRIKEV/twd-cli/.github/actions/run` composite action. With a custom workflow, `twd-cli run` still validates contracts and writes the results into `.twd/report/summary.md`, but you'll need to upload it as a build artifact or post the comment yourself — there's no built-in PR comment posting outside the action.
 
 ---
 

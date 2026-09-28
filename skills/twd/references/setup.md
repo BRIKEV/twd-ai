@@ -80,7 +80,13 @@ Under a non-root base path, pass `serviceWorkerUrl: '/BASE/mock-sw.js'`.
 `url` is the app URL including any base path. `coverage` stays `false` until CI
 coverage is set up. If the file exists, merge rather than overwrite.
 
-## Step 5: Write a First Test
+## Step 5: Ignore the report folder
+
+Every run writes `.twd/report/` and rewrites it on the next one. Append `.twd/`
+to `.gitignore` unless `.twd` or `.twd/` is already listed; create the file if
+there is none.
+
+## Step 6: Write a First Test
 
 ```typescript
 // src/twd-tests/app.twd.test.ts
@@ -108,5 +114,5 @@ curl -s --max-time 3 -o /dev/null -w '%{http_code}' http://localhost:5173
 npx twd-cli run
 ```
 
-Exit code 0 means setup is complete. To also watch runs live in a tab, see
-`relay.md`.
+Exit code 0, and `"outcome": "passed"` in `.twd/report/run.json`, means setup
+is complete. To also watch runs live in a tab, see `relay.md`.

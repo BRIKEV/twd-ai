@@ -164,6 +164,8 @@ npx twd-cli run --changed-since origin/DEFAULT_BRANCH
 npx twd-cli run --record --test "should render the list"
 ```
 
+Every run writes `.twd/report/`: `run.json` (the result), `summary.md` and `index.html`. The folder is replaced on each run.
+
 ## Standard Imports
 
 ```typescript
@@ -439,7 +441,15 @@ Using Step 1 item 11 and the entry-file and Vite-config checks, list which of th
 
 7. **Add the `test:ci` script** to `package.json`: `"test:ci": "npx twd-cli run"`. If a different `test:ci` already exists, show it and ask before replacing it.
 
-8. Write a **scaffold-only** first test file at `src/twd-tests/hello.twd.test.ts` (create the `src/twd-tests/` directory if needed). The file must contain **only empty `it` blocks** — this is a setup skill, NOT a test-writing skill. Do NOT invent assertions, selectors, or page content. Do NOT add Sinon unless the user explicitly configured third-party modules that need stubbing. Use the beforeEach/afterEach from the generated `twd-patterns.md`.
+8. **Ignore `.twd/`.** Every `twd-cli run` writes its report folder, `.twd/report/`, and rewrites it on the next run, so it must never be committed. Read `.gitignore` and append this line unless `.twd` or `.twd/` is already listed:
+
+   ```
+   .twd/
+   ```
+
+   If `.gitignore` does not exist, create it with that single line. If `twd.config.json` sets `report.dir` outside `.twd/`, ignore that folder too.
+
+9. Write a **scaffold-only** first test file at `src/twd-tests/hello.twd.test.ts` (create the `src/twd-tests/` directory if needed). The file must contain **only empty `it` blocks** — this is a setup skill, NOT a test-writing skill. Do NOT invent assertions, selectors, or page content. Do NOT add Sinon unless the user explicitly configured third-party modules that need stubbing. Use the beforeEach/afterEach from the generated `twd-patterns.md`.
 
    Example scaffold:
 
@@ -474,7 +484,7 @@ When done, summarize:
 - What values were detected vs asked
 - **Which integration path was used** — Vite plugin (`twd()` in `vite.config.*`, no TWD code in the entry file) or manual (`initTWD(...)` block in the entry file). For Vite projects with a non-root `base`, mention that the plugin auto-prefixes the script src and `serviceWorkerUrl`.
 - **Server-state cache handling** (if applicable) — which library, the import path used in `QUERY_CACHE_RESET`, and whether the singleton was scaffolded or already existed
-- **Runner** — twd-cli installed, `twd.config.json` written or merged (show its contents), `test:ci` added or kept
+- **Runner** — twd-cli installed, `twd.config.json` written or merged (show its contents), `test:ci` added or kept, `.twd/` added to `.gitignore` or already there
 - What setup steps were completed
 - Next steps, in this order:
   1. Start the app with `DEV_COMMAND`
