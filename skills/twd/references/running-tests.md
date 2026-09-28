@@ -59,10 +59,78 @@ A `--test` filter that matches nothing exits 1 with `No tests matched
 filter(s): …` — grep the test files for the exact describe or it title.
 `npx twd-cli run --help` lists every flag.
 
-## Reading the output
+## Reading the result
 
-Every run ends with one block. It is the whole answer — never pipe through
-`tee`, `head` or `tail`, never grep for `✓`, never count lines.
+Every run, filtered or not, writes a report folder and ends its console output
+with a pointer to it:
+
+```
+  Report: .twd/report/index.html
+```
+
+```
+.twd/report/
+  run.json       # the result, machine-readable — read this
+  summary.md     # only what broke, sized for a PR comment
+  index.html     # for a human: failures, recordings, layout snapshot diffs
+  recordings/    # clips, when --record is set
+  snapshots/     # layout snapshot captures, when one failed
+```
+
+The folder is `report.dir` from `twd.config.json` when that is set. With
+`"report": false` there is no folder; read the console block instead (below).
+
+**Read `run.json` with the Read tool after every run.** It is the whole answer —
+never pipe the console through `tee`, `head` or `tail`, never grep for `✓`,
+never count lines.
+
+```json
+{
+  "outcome": "failed",
+  "summary": {
+    "passed": 41, "failed": 1, "skipped": 0, "notRun": 0, "stoppedEarly": false,
+    "contracts": { "passed": 12, "errors": 0, "warnings": 1, "skipped": 0 }
+  },
+  "error": null,
+  "tests": [
+    {
+      "path": "Todo list > should create a todo",
+      "status": "fail",
+      "attempts": 3,
+      "error": "AssertionError: expected 3 rows to have length 4 (at http://localhost:5173/todos)",
+      "diagnostics": { "mockRules": { "registered": 3, "triggered": 2, "untriggered": ["createTodo"] } }
+    },
+    { "path": "Todo list > should filter completed", "status": "pass", "attempts": 2 }
+  ]
+}
+```
+
+- **`outcome`** — `passed`, `failed` or `interrupted`. It always agrees with
+  the exit code; start here.
+- **`interrupted`** — the run never finished: server unreachable, sidebar
+  missing, a `--test` filter that matched nothing, a crash. `error.message`
+  says what happened and `error.diagnostic`, when it is not `null`, names the
+  fix; look the message up under *Diagnostics*. `tests` holds whatever
+  finished before it stopped. A `--changed-since` run with no changed tests is
+  not interrupted: it is `passed` with zero tests.
+- **`status: "fail"`** — a failure. `path` is the describe-path to pass to
+  `--test`, `error` is the assertion, and `diagnostics.mockRules` is the
+  `mock rules` row (see below).
+- **`status: "pass"` with `attempts` > 1** — a retry, and each one is a
+  finding. If you wrote or touched the test, fix it like a failure: usually a
+  missing `await twd.waitFor(...)`, state not reset in `beforeEach`, or a mock
+  registered after `visit`. Otherwise list it in the report with its attempt
+  number. A green run with retries is not a clean run.
+- **`summary.contracts`** — contract validation, not test failures.
+  `warnings` never fail a run. `errors` come from a spec in `mode: "error"` and
+  make the outcome `failed` even when every test passed; the failing mocks are
+  in `contracts.results[]` with `validation.valid: false`.
+- **`summary.stoppedEarly`** — the run stopped at the failure limit, and
+  `notRun` tests never ran. Fix the listed failures before looking for more.
+- `handlers` lists the whole suite's describe tree; skip it.
+
+The console block says the same thing in brief, and it is what to read when the
+report is disabled:
 
 ```
 --- Run complete ---
@@ -76,20 +144,26 @@ Every run ends with one block. It is the whole answer — never pipe through
 
   Retried (1):
     ✓ Todo list > should filter completed (passed on attempt 2)
+
+  Report: .twd/report/index.html
 ```
 
-- **`Failed tests (n)`** — the failures, each with its describe-path, the
-  `mock rules` row when the test registered mocks, and the error.
-- **`Retried (n)`** — passed only on a later attempt. Each one is a finding.
-  If you wrote or touched the test, fix it like a failure: usually a missing
-  `await twd.waitFor(...)`, state not reset in `beforeEach`, or a mock
-  registered after `visit`. Otherwise list it in the report with its attempt
-  number. A green run with retries is not a clean run.
-- **`Mocks validated: … | Errors: n`** and lines like
-  `✗ GET /api/todos (200) — mock "todos"` are contract validation, not test
-  failures.
-- **`⚠ Stopped early: reached the failure limit`** — the run stopped after the
-  listed failures; fix them before looking for more.
+### One report per run
+
+Each run replaces the folder, so after the fix loop it holds the last filtered
+run, not the suite. Read it right after the run that wrote it. To keep a run's
+report while running others — the closing run while you re-check a fix, say —
+give it its own folder:
+
+```bash
+npx twd-cli run --report-dir .twd/closing
+```
+
+`npx twd-cli report <dir> --format markdown` prints a saved report's
+`summary.md`; `--format json` prints its `run.json`.
+
+`.twd/` is generated output and belongs in `.gitignore`; setup adds it. If
+`.gitignore` does not list `.twd` or `.twd/`, add it (see `setup.md`).
 
 ## The `mock rules` diagnostic
 
@@ -133,7 +207,8 @@ rules from earlier tests are counted and blamed on this one.
 npx twd-cli run --record --test "<exact it() title>"
 ```
 
-Writes one clip per matched test to `twd-artifacts/`. Needs ffmpeg on the PATH;
+Writes one clip per matched test to `.twd/report/recordings/`, listed in
+`run.json` under `recordings` and playable from `index.html`. Needs ffmpeg on the PATH;
 twd-cli checks the binary before launching anything and says what is missing.
 This is how a human reviews what you built. Offer it in the report; do not run
 it unasked.

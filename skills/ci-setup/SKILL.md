@@ -72,7 +72,7 @@ Use the OpenAPI specs found in Step 1 (item 6).
 > - `contracts/<spec>.json`
 >
 > **Do you want to validate test mocks against them in CI?** This catches drift between your mocks and the real API on every PR.
-> - **Yes** — adds `contracts[]` + `contractReportPath` to `twd.config.json`, sets `contract-report: 'true'` on the action, adds `pull-requests: write` permission, and appends `.twd` to `.gitignore`
+> - **Yes** — adds `contracts[]` to `twd.config.json`, sets `contract-report: 'true'` on the action, and adds `pull-requests: write` permission
 > - **No** — skip; can be added later
 
 ### If no specs were found:
@@ -85,7 +85,7 @@ Skip this step silently.
 - **`mode`** — `"error"` (strict by default; user can switch to `"warn"` later).
 - **`strict`** — `true` (rejects unexpected properties).
 
-The "Custom setup" workflow option (Step 7, Option B) does NOT support `contract-report` PR comments — only the GitHub Action handles that. If the user picks contracts AND custom setup, warn them that the contract report won't be posted as a PR comment and they'll need to read `.twd/contract-report.md` from build artifacts.
+The "Custom setup" workflow option (Step 7, Option B) does NOT support `contract-report` PR comments — only the GitHub Action handles that. If the user picks contracts AND custom setup, warn them that the contract report won't be posted as a PR comment and they'll need to read `.twd/report/summary.md` from build artifacts.
 
 ## Step 2.6: Ask About PR Video Recording
 
@@ -200,7 +200,7 @@ Run each install command only after the user confirms.
 
 - **Coverage requested:** set `"coverage": true`.
 - **Coverage not requested:** leave `coverage` as it is.
-- **Contracts enabled (Step 2.5):** add `contractReportPath` and one `contracts[]` entry per detected spec, using the `baseUrl`, `mode` and `strict` defaults from Step 2.5.
+- **Contracts enabled (Step 2.5):** add one `contracts[]` entry per detected spec, using the `baseUrl`, `mode` and `strict` defaults from Step 2.5. Do not add `contractReportPath`: it is deprecated and prints a warning on every run, because contract results are in the run report's `summary.md`. If the file already has it, offer to remove it.
 
 Example after a merge with coverage and one spec at `contracts/todos-3.0.json`:
 
@@ -208,7 +208,6 @@ Example after a merge with coverage and one spec at `contracts/todos-3.0.json`:
 {
   "url": "http://localhost:5173",
   "coverage": true,
-  "contractReportPath": ".twd/contract-report.md",
   "contracts": [
     {
       "source": "./contracts/todos-3.0.json",
@@ -440,14 +439,12 @@ never fails a step — it just makes every clip a recording of an error screen.
 - `timeout-minutes`, `continue-on-error` on the comment steps, and
   `concurrency` — each one bounds a different way this can go wrong
 
-## Step 8: Update `.gitignore` (Contracts Only)
+## Step 8: Update `.gitignore`
 
-Skip this step if contracts were not enabled.
-
-The contract report is written to `.twd/contract-report.md`. Append `.twd` to `.gitignore` if it isn't already listed:
+Every `twd-cli run` writes its report folder, `.twd/report/`, locally and in CI. `/twd:setup` normally ignores it already. Append `.twd/` to `.gitignore` unless `.twd` or `.twd/` is already listed:
 
 ```
-.twd
+.twd/
 ```
 
 If `.gitignore` doesn't exist, create it with that single line. If it exists, read it first and only append when the entry is missing.
@@ -466,6 +463,6 @@ When done, summarize:
   - "Push to GitHub to trigger the workflow"
   - "Run `npm run test:ci` locally to verify headless tests work"
   - If coverage: "Run `npm run dev:ci` then `npm run test:ci` then `npm run collect:coverage:text` to see coverage locally"
-  - If contracts: "Mock vs spec drift will appear as a PR comment after the next push; locally, check `.twd/contract-report.md` after `npm run test:ci`"
+  - If contracts: "Mock vs spec drift will appear as a PR comment after the next push; locally, check `.twd/report/summary.md` after `npm run test:ci`"
   - If recording: "Create a `record` label on the repo, then add it to a pull request to get one video per test the branch added"
   - If environment variables were wired in: "A new variable means editing **both** workflows — the test one and the recording one. They have to start the same app"
