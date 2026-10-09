@@ -50,21 +50,37 @@ an `initTWD(...)` block in the entry file, offer to delete it — the plugin
 replaces it. Leave any `twdRemote()` or `createBrowserClient(` wiring
 untouched; it belongs to twd-relay.
 
-### Angular and other non-Vite bundlers
+### Angular
 
-Insert a dev-only block in `src/main.ts` **before** `bootstrapApplication(...)`:
+Insert a dev-only block in `src/main.ts` **before** `bootstrapApplication(...)`,
+guarded by a build-time constant — never `isDevMode()`, which is a runtime call
+that leaves every lazy chunk (React included) in the production build:
 
 ```typescript
-import { isDevMode } from '@angular/core';
+declare const TWD_ENABLED: boolean | undefined;
 
-if (isDevMode()) {
+if (typeof TWD_ENABLED !== 'undefined' && TWD_ENABLED) {
   const { initTWD } = await import('twd-js/bundled');
   const tests = {
     './twd-tests/feature.twd.test.ts': () => import('./twd-tests/feature.twd.test'),
   };
   initTWD(tests, { open: true, position: 'left' });
+} else if (typeof TWD_ENABLED === 'undefined') {
+  console.warn('[TWD] TWD_ENABLED is not defined — add the `define` option to angular.json.');
 }
 ```
+
+Then in `angular.json` under `architect.build`: `"options": { "define": { "TWD_ENABLED": "false" } }`
+and `"configurations": { "development": { "define": { "TWD_ENABLED": "true" } } }`.
+Keep the `typeof` check: without it a configuration missing the `define` throws
+before bootstrap and renders a blank page. Angular has no `import.meta.glob`, so
+add each new test file to `tests` by hand.
+
+### Webpack / CRA
+
+Guard on `process.env.NODE_ENV === 'development'` and build `tests` from
+`require.context('./', true, /\.twd\.test\.ts$/)`, wrapping each module in
+`Promise.resolve`. Same `initTWD` call.
 
 Under a non-root base path, pass `serviceWorkerUrl: '/BASE/mock-sw.js'`.
 
@@ -96,7 +112,7 @@ import { describe, it } from "twd-js/runner";
 describe("App", () => {
   it("should render the main heading", async () => {
     await twd.visit("/");
-    const heading = screenDom.getByRole("heading", { level: 1 });
+    const heading = await screenDom.findByRole("heading", { level: 1 });
     twd.should(heading, "be.visible");
   });
 });

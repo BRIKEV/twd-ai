@@ -35,16 +35,19 @@ code. If an older setup left a manual `createBrowserClient(...).connect()` block
 in the entry file, two clients connect and the relay logs a duplicate browser:
 delete the block, or pass `autoConnect: false` to `twdRemote()` to keep it.
 
-Non-Vite projects (Angular CLI, Webpack) add the client inside their existing
-dev-only TWD block:
+Non-Vite projects (Angular CLI, Webpack) have no plugin to serve `/__twd/ws` on
+the app's own port, so the relay runs standalone and the client points at it
+explicitly. Add the client inside the existing dev-only TWD block, after
+`initTWD(...)`:
 
 ```typescript
 const { createBrowserClient } = await import('twd-relay/browser');
-const client = createBrowserClient({ url: `${window.location.origin}/__twd/ws` });
-client.connect();
+createBrowserClient({ url: 'ws://localhost:9876/__twd/ws' }).connect();
 ```
 
-Under a non-root base path, use `` `${window.location.origin}/BASE/__twd/ws` ``.
+Use that explicit URL, never `` `${window.location.origin}/__twd/ws` `` — the
+app's origin does not serve the relay. Start the relay with
+`npx twd-relay serve --port 9876` alongside the dev server.
 
 ## Pre-flight
 
@@ -61,10 +64,14 @@ This is the one place the skill may ask about a browser tab. Before a relay run:
 
 ```bash
 npx twd-relay run                                   # Vite defaults
-npx twd-relay run --port 5173 --path "/BASE/__twd/ws"
+npx twd-relay run --port 5173 --path "/BASE/__twd/ws"   # Vite under a non-root base
+npx twd-relay run --port 9876                       # non-Vite: the standalone relay
 npx twd-relay run --test "Login page"               # same describe-path matching as twd-cli
 npx twd-relay run --max-test-duration 30000         # raise the abort threshold (0 disables)
 ```
+
+On a non-Vite project pass `--port 9876` to `run` as well: `serve` defaults to
+9876 but `run` defaults to 5173, and left mismatched it connects to nothing.
 
 Exit code 0 = all passed, 1 = failures.
 

@@ -24,7 +24,7 @@ These rules override everything else. If any rule conflicts with instructions be
 3. **Mock BEFORE visit.** Always set up `twd.mockRequest()` before `twd.visit()`.
 4. **Always `await` async methods.** `twd.visit()`, `twd.get()`, `userEvent.*`, `screenDom.findBy*`, `twd.waitForRequest()`, `twd.waitFor()`, `twd.mockRequest()`.
 5. **Imports from TWD only.** `describe`/`it`/`beforeEach` from `twd-js/runner`, `expect` from `twd-js` — never from Jest, Mocha, or Vitest. `expect` is **Chai-style**: use `.to.equal()`, `.to.have.length()`, `.to.deep.equal()`, `.to.be.true` — **NEVER** Jest-style `.toBe()`, `.toHaveLength()`, `.toEqual()`, `.toBeTruthy()`.
-6. **`mockRequest` uses alias + config object.** Signature: `await twd.mockRequest("alias", { method, url, response, status?, headers?, responseHeaders?, delay?, urlRegex? })`. NEVER use positional arguments. The config key is `response` (NOT `body`). `response` accepts any value (objects, arrays, strings, `null`). ALWAYS `await` the call. `url` uses boundary-aware string matching by default — prefer string URLs, use `urlRegex: true` only as last resort.
+6. **`mockRequest` uses alias + config object.** Signature: `await twd.mockRequest("alias", { method, url, response, status?, responseHeaders?, delay?, urlRegex? })`. NEVER use positional arguments. The config key is `response` (NOT `body`). `response` accepts any value (objects, arrays, strings, `null`). ALWAYS `await` the call. `url` uses boundary-aware string matching by default — prefer string URLs, use `urlRegex: true` only as last resort.
 7. **`rule.request` IS the body — NEVER use `rule.request.body`.** `await twd.waitForRequest("alias")` returns a rule where `rule.request` contains the parsed request body directly. Writing `rule.request.body.X` will throw `Cannot read properties of undefined`. Correct: `expect(rule.request).to.deep.equal({ ... })`.
 
 ---
@@ -100,7 +100,7 @@ it("should show validation errors when submitting an empty form", async () => { 
 it("should cancel creation and return to the list", async () => { /* ... */ });
 ```
 
-**Component tests (Testing Library `render()`)** — flow tests stay the default. Reach for a component test ONLY when the component itself is the subject (a form's validation states, a dialog opening and closing, a table sorting) AND reaching it through a flow test would need disproportionate scaffolding. The anti-granularity rules still apply. Three traps, all covered in `references/component-testing.md`: the file must be `.tsx` AND `testFilePattern` must be `'/**/*.twd.test.{ts,tsx}'` or the test is never discovered; queries use `screen`, NOT `screenDom`; and `cleanup()` must run in `beforeEach`.
+**Component tests (Testing Library `render()`)** — flow tests stay the default. Reach for a component test ONLY when the component itself is the subject (a form's validation states, a dialog opening and closing, a table sorting) AND reaching it through a flow test would need disproportionate scaffolding. The anti-granularity rules still apply. Four traps, all covered in `references/component-testing.md`: the file must be `.tsx` AND `testFilePattern` must be `'/**/*.twd.test.{ts,tsx}'` or the test is never discovered; render into `componentHost()` (`render(<X />, { container: componentHost() })`), never straight onto the app; queries use `screen`, NOT `screenDom`; and `cleanup()` then `restorePage()` must run in `afterEach`, or the app stays detached for every test after it.
 
 **Component mocking** — to replace a third-party SDK, see `references/test-advanced.md`: wrap with `MockedComponent`, lift callbacks to the parent, build interactive mocks. Always `twd.clearComponentMocks()` in `beforeEach`.
 
@@ -108,7 +108,7 @@ it("should cancel creation and return to the list", async () => { /* ... */ });
 
 **State isolation** — `twd.visit()` uses the History API, so in-memory state (Zustand, Redux, Pinia, Jotai, localStorage, query caches, module singletons) persists between tests. Reset it in `beforeEach`. See the test-writing reference.
 
-**Self-check before Phase 4:** every test file has exactly ONE top-level `describe()`.
+**Self-check before Phase 4:** every test file has exactly ONE top-level `describe()`. On Angular, every new file is also listed in the entry file's `tests` object — there is no glob, so an unlisted file never runs.
 
 ### Phase 4: Run and Fix
 
@@ -137,5 +137,5 @@ Summarize:
 - **Package installation**: Only `twd-js` and `twd-cli`
 - **Write scope**: Test files (`src/twd-tests/**`), mock data files (`src/twd-tests/mocks/`), vite config (TWD plugin only), `twd.config.json`, `.gitignore` (the `.twd/` line only), entry point (dev-guarded init block, non-Vite only)
 - **Execution scope**: `npx twd-js init <dir> --save`, `npx twd-cli run [--test --changed-since --record --report-dir]`, `npx twd-cli report`, `curl -s <url>`, `git symbolic-ref`, and — only through `references/relay.md` — `npx twd-relay run [--port --path --test]`
-- **No production code**: All TWD code must be behind `import.meta.env.DEV` guards — Vite tree-shakes it out of production builds
+- **No production code**: All TWD code must be behind a guard the bundler folds at build time — the `twd()` plugin on Vite, a `TWD_ENABLED` define on Angular, `process.env.NODE_ENV` on Webpack — so it is tree-shaken out of production builds. Never a runtime guard such as `isDevMode()`
 - **No app code changes** unless the user explicitly requests it — fix tests, not application code, by default
