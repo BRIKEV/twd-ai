@@ -1,0 +1,38 @@
+name: Validate plugin
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      # Pinned so a new CLI release cannot turn an unchanged PR red. Bump it
+      # deliberately. No credentials needed: validation is local and offline.
+      - name: Validate manifests and skills
+        run: |
+          npx -y @anthropic-ai/claude-code@2.1.295 plugin validate --strict .
+          npx -y @anthropic-ai/claude-code@2.1.295 plugin validate --strict skills
+
+      # `plugin validate` checks frontmatter and manifests, not the text. Every
+      # `references/<file>.md` a skill names must exist in that skill's folder.
+      - name: Check skill references resolve
+        run: |
+          status=0
+          for skill in skills/*/; do
+            for ref in $(grep -rhoE 'references/[a-z0-9-]+\.md' "$skill" | sort -u); do
+              if [ ! -f "$skill$ref" ]; then
+                echo "::error file=$skill::$skill names $ref, which does not exist"
+                status=1
+              fi
+            done
+          done
+          exit $status
