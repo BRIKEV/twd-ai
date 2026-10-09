@@ -8,7 +8,7 @@ writes. They catch an edit that quietly reverts a rule the skills depend on.
 |---|---|---|
 | `twd-flow-test` | `twd` | One top-level `describe`, runner imports, `findBy*` queries, Chai asserts, no `headers:`/`body:`, payload asserted on `rule.request`, type check attempted, mocks before visit |
 | `twd-component-test` | `twd` | `componentHost()` helper that detaches the app root, `cleanup()` + `restorePage()` in `afterEach`, `screen` not `screenDom`, no blank-route visit, network mocked rather than project code stubbed |
-| `setup-angular` | `setup` | `TWD_ENABLED` define guard (never `isDevMode()`), the define in `angular.json`, `initTWD` before bootstrap, a `Type-check command` in `twd-patterns.md`, port 4200 |
+| `setup-vite-react-query` | `setup` | The common case: `twd()` Vite plugin with a `.tsx` test pattern and no entry-file code, `twd.config.json`, `test:ci`, `.twd/` ignored, and `twd-patterns.md` with the type-check command and `queryClient.clear()` |
 | `ci-setup-recording` | `ci-setup` | Test workflow on the `run` action, a separate label-triggered recording workflow pinned to `v1.10.0` with full history, and both starting the mock API with the same env var as a commented placeholder |
 
 ## Run
@@ -27,6 +27,6 @@ claude plugin eval . --scaffold --trust-plugin --ablation none \
 - The scaffolds write their projects from heredocs and install nothing, so a run
   needs no network.
 
-Eval runs refuse writes into `.claude/`, so `setup-angular` grades the
-`twd-patterns.md` write the skill attempted, from the trace, rather than the
+Eval runs refuse writes into `.claude/`, so `setup-vite-react-query` grades
+the `twd-patterns.md` write the skill attempted, from the trace, rather than the
 file on disk.
