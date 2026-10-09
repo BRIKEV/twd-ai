@@ -1,0 +1,64 @@
+schema_version: "1.1"
+name: twd-component-test
+description: The twd skill writes a Testing Library component test with the component host helper
+expected_outcome: Renders into componentHost(), cleanup() and restorePage() in afterEach, screen queries, the network mocked rather than the component's own code stubbed
+tags: [twd]
+runs: 1
+context:
+  scaffold_script: scaffold.sh
+execution:
+  max_turns: 40
+  timeout_seconds: 900
+  allowed_tools: [Read, Glob, Grep, Skill, TodoWrite, Agent]
+  append_system_prompt: >-
+    No user is available to answer. Where you would ask a question, take the
+    detected value or the recommended option and continue.
+  prompt: |
+    Write a component test for the AddTodoDialog component on its own, with
+    Testing Library: opening it, the required-title validation, cancelling,
+    and saving. Put it in src/twd-tests/add-todo-dialog.twd.test.tsx. The dev
+    server is not running, so stop after writing and type-checking; do not
+    try to run it.
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?twd"'
+  - name: test-file-written
+    type: file_exists
+    path: src/twd-tests/add-todo-dialog.twd.test.tsx
+  - name: host-helper-written
+    type: file_exists
+    path: "**/componentHost.ts"
+  - name: renders-into-host
+    type: regex
+    pattern: 'container:\s*componentHost\(\)'
+    target: { source: file, path: src/twd-tests/add-todo-dialog.twd.test.tsx }
+  - name: cleanup-and-restore-in-aftereach
+    type: regex
+    pattern: 'afterEach\([^)]*\)?\s*=>\s*\{[^}]*cleanup\(\)[^}]*restorePage\(\)'
+    target: { source: file, path: src/twd-tests/add-todo-dialog.twd.test.tsx }
+  - name: no-screendom
+    type: regex
+    pattern: 'screenDom\.'
+    match: not_contains
+    target: { source: file, path: src/twd-tests/add-todo-dialog.twd.test.tsx }
+  - name: no-blank-route-visit
+    type: regex
+    pattern: 'twd\.visit\('
+    match: not_contains
+    target: { source: file, path: src/twd-tests/add-todo-dialog.twd.test.tsx }
+  - name: helper-detaches-not-empties
+    type: regex
+    pattern: 'replaceWith'
+    target: { source: file, path: src/twd-tests/support/componentHost.ts }
+  - name: real-component-network-mocked
+    type: llm
+    focus: { source: file, path: src/twd-tests/add-todo-dialog.twd.test.tsx }
+    criteria: |
+      PASS if the test renders the real AddTodoDialog, mocks the POST with
+      twd.mockRequest rather than stubbing the component or its code with
+      Sinon, and covers open, required-title validation, cancel and save in
+      a few behaviour-sized it() blocks.
+      FAIL if it stubs project code, misses one of the four behaviours, or
+      writes one it() per element.

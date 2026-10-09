@@ -9,7 +9,11 @@ allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(npm install *)]
 
 You are configuring CI/CD for TWD tests. Your job is to detect the project setup, ask whether coverage is needed, install packages, and generate a GitHub Actions workflow.
 
-Read `skills/twd/references/ci.md` for twd-cli configuration, coverage setup, GitHub Actions templates, and the PR recording workflow.
+This file has the whole flow, including the GitHub Action workflow template. Three references hold what only some projects need — read each only when its option is chosen:
+
+- `references/custom-workflow.md` — the user picks Custom setup instead of the GitHub Action (Step 7, Option B)
+- `references/contracts.md` — contract validation is enabled (Step 2.5)
+- `references/recording.md` — the PR recording workflow is enabled (Step 2.6)
 
 ## Step 1: Detect Project State
 
@@ -389,10 +393,12 @@ The `pull-requests: write` permission lets the action post the contract validati
 
 ### Option B: Custom Setup
 
-Use the appropriate template from `skills/twd/references/ci.md`:
+Read `references/custom-workflow.md` and use its template:
 
-- **Without coverage**: Use the "Basic Workflow" template
-- **With coverage**: Use the "Workflow with Coverage" template
+- **Without coverage**: the "Basic Workflow" template
+- **With coverage**: the "Workflow with Coverage" template
+
+Add its job summary and report upload steps.
 
 **Customize both options:**
 - Set the correct port in the `wait-on` URL
@@ -403,8 +409,8 @@ Use the appropriate template from `skills/twd/references/ci.md`:
 
 Skip this step if recording was not enabled in Step 2.6.
 
-Write the "Workflow template" from `skills/twd/references/ci.md` (the
-**PR Recording** section) to `.github/workflows/twd-record.yml`. This is a new
+Read `references/recording.md` and write its workflow template to
+`.github/workflows/twd-record.yml`. This is a new
 file in every case — never merge recording into `twd-tests.yml`, for the reason
 given in Step 2.6.
 

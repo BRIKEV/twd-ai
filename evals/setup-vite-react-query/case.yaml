@@ -1,0 +1,60 @@
+schema_version: "1.1"
+name: setup-vite-react-query
+description: /twd:setup on the common case, a Vite + React app with TanStack Query
+expected_outcome: The twd() Vite plugin with a .tsx test pattern and no entry-file code, twd.config.json, test:ci, .twd/ ignored, and twd-patterns.md with the type-check command and the query cache reset
+tags: [setup]
+runs: 1
+context:
+  scaffold_script: scaffold.sh
+execution:
+  max_turns: 60
+  timeout_seconds: 900
+  allowed_tools: [Read, Glob, Grep, Skill, TodoWrite, AskUserQuestion]
+  append_system_prompt: >-
+    No user is available to answer. Where the skill says to ask, take the
+    detected values and the recommended option, approve the edits it proposes,
+    and continue. For the query cache: the singleton already exists at
+    src/query-client.ts. Package installs, the service worker init and the
+    verification run are not possible here: skip them and say so.
+  prompt: /twd:setup
+graders:
+  - name: vite-plugin-imported
+    type: regex
+    pattern: 'from\s+["'']twd-js/vite-plugin["'']'
+    target: { source: file, path: vite.config.ts }
+  - name: plugin-matches-tsx
+    type: regex
+    pattern: 'twd\(\s*\{[\s\S]*testFilePattern:\s*["'']/\*\*/\*\.twd\.test\.\{ts,tsx\}["'']'
+    target: { source: file, path: vite.config.ts }
+  - name: no-entry-file-code
+    type: regex
+    pattern: 'initTWD|twd-js'
+    match: not_contains
+    target: { source: file, path: src/main.tsx }
+  - name: twd-config
+    type: regex
+    pattern: '"url"\s*:\s*"http://localhost:5173[^"]*"[\s\S]*"coverage"\s*:\s*false|"coverage"\s*:\s*false[\s\S]*"url"\s*:\s*"http://localhost:5173'
+    target: { source: file, path: twd.config.json }
+  - name: test-ci-script
+    type: regex
+    pattern: '"test:ci"\s*:\s*"npx twd-cli run"'
+    target: { source: file, path: package.json }
+  - name: report-folder-ignored
+    type: regex
+    pattern: '^\.twd/?$'
+    flags: m
+    target: { source: file, path: .gitignore }
+  # Eval runs refuse writes into .claude/, so the patterns file never lands on
+  # disk. Grade the Write the skill attempted, from the trace.
+  - name: patterns-file-attempted
+    type: tool_used
+    tool: Write
+    input_match: '\.claude/twd-patterns\.md'
+  - name: patterns-has-typecheck-command
+    type: regex
+    pattern: 'Type-check command\*\*:\s*`?npx tsc --noEmit -p tsconfig\.app\.json'
+    target: trace
+  - name: patterns-clears-query-cache
+    type: regex
+    pattern: 'queryClient\.clear\(\)'
+    target: trace
