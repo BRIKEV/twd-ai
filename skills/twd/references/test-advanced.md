@@ -6,7 +6,7 @@ This reference covers component mocking for replacing third-party SDKs (payment 
 - You need to test callback flows (success, failure, error handlers)
 - You're refactoring an SDK wrapper to make it testable
 
-For the core test-writing API (mockRequest, assertions, waitFor, state isolation, Sinon stubbing), see `test-writing.md`.
+For the core test-writing API (mockRequest, assertions, state isolation), see `test-writing.md`; for `waitFor` and Sinon, `test-api.md`.
 
 ## Section 1: Component Mocking Basics
 

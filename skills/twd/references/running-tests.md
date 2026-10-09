@@ -230,5 +230,5 @@ it unasked.
 | `Rule "alias" was not executed` | Mock URL or method does not match the real request, or `waitForRequest` ran before/after it fired | `twd.getRequestCounts()`: 0 means the mock never matched, > 0 means a timing problem. Verify the string URL (boundary-aware). Hardcode dynamic IDs. `urlRegex: true` only as a last resort |
 | `Cannot read property of null` | Missing `await` | Add `await` before `twd.get()`, `userEvent.*`, etc. |
 | `twd.mockRequest is not a function` | Service worker not initialized | Check `public/mock-sw.js` exists and `serviceWorker` is not disabled |
-| Assertion fails intermittently, or shows under `Retried` | Render not finished when asserted | Wrap the check in `await twd.waitFor(() => ...)`. Not preemptively — only for a test that failed on timing. See `test-writing.md` "waitFor vs twd.wait" |
+| Assertion fails intermittently, or shows under `Retried` | Render not finished when asserted | Wrap the check in `await twd.waitFor(() => ...)`. Not preemptively — only for a test that failed on timing. See `test-api.md` "waitFor vs twd.wait" |
 | `mock rules 0/N triggered` on a test that registers no mocks | Rule bleed from earlier tests | See *The `mock rules` diagnostic* |

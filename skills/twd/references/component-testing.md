@@ -4,7 +4,7 @@ Testing Library's `render()` works inside a TWD test. The component mounts into 
 
 **Flow tests remain the default.** Read this only when a component genuinely is the subject of the test and driving it through the app would need disproportionate scaffolding. See "When to reach for this" below before writing one.
 
-For the core test-writing API (mockRequest, assertions, waitFor, state isolation, Sinon stubbing), see `test-writing.md`. For replacing a component with a stub, which is a different thing entirely, see `test-advanced.md`.
+For the core test-writing API (mockRequest, assertions, state isolation), see `test-writing.md`; for `waitFor` and Sinon, `test-api.md`. For replacing a component with a stub, which is a different thing entirely, see `test-advanced.md`.
 
 ## When to reach for this
 
@@ -17,7 +17,7 @@ Use a **flow test** (the default) for anything that crosses a boundary: routing,
 
 Rendering a component in isolation to test a flow means rebuilding the app around it, which is how test files end up longer than the components they test. When in doubt, write the flow test.
 
-The anti-granularity rules in `test-writing.md` still apply here. A component test is not a licence to write one `it()` per element. Each `it()` still covers a meaningful behaviour with multiple assertions.
+The anti-granularity rules in the skill's testing philosophy still apply here. A component test is not a licence to write one `it()` per element. Each `it()` still covers a meaningful behaviour with multiple assertions.
 
 ## Setup requirements
 

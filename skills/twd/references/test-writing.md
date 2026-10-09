@@ -1,12 +1,8 @@
 # TWD Test Writing Reference
 
-TWD (Test While Developing) is a **deterministic, in-browser testing tool** that runs inside the app's own Vite dev server. Tests are deterministic because all external dependencies — network requests, third-party providers, viewport size — are mocked or controlled by the test. It is **complementary to Playwright/Cypress** — use TWD for fast component and page-level tests with mocked APIs during development; use Playwright/Cypress for full E2E flows across pages, real network, and cross-browser validation. Do NOT treat TWD as a Playwright replacement or write Playwright-style tests with it.
+TWD tests run inside the app's own dev server: the real app and component tree, with every external dependency (network, third-party providers, viewport) mocked or controlled by the test. TWD is **complementary to Playwright/Cypress**, not a replacement — never write Playwright-style tests with it. Tests run headlessly with `twd-cli` (see `running-tests.md`).
 
-> **Runner**: tests run headlessly with **`twd-cli`** against the running dev server (`npx twd-cli run`). See `running-tests.md`. Watching a run live in your own tab is opt-in through twd-relay — see `relay.md`.
-
-## Quick Reference
-
-Everything you need for most tests. The Detailed API Reference below covers the full surface area — consult it when you need more than the basics.
+This file is the core: enough for most tests. Read **`test-api.md`** when you need more — URL matching beyond a plain path, regex URLs, waiting on the same request twice, `twd.waitFor`, Sinon module stubbing, uncommon interactions (`setInputValue`, `upload`, `hover`) or assertions (`be.focused`, `be.hidden`…), or when a failure points at how an API was used.
 
 ### Imports
 
@@ -57,84 +53,11 @@ await twd.visit("/page");
 await twd.waitForRequest("labelName");
 ```
 
-> **Important**: `mockRequest` always needs `await`. The second argument uses `response` (NOT `body`). The signature is: `await twd.mockRequest("alias", { method, url, response, status?, responseHeaders?, delay?, urlRegex? })`. The `response` field accepts any value — objects, arrays, strings, `null`, etc.
-
-> **Debugging mock matches**: `twd.getRequestCount("alias")` returns how many times a mock was hit. `twd.getRequestCounts()` returns `{ alias: count, ... }` for all mocks. Use these when `waitForRequest` times out to check if the URL/method is matching. Counters reset with `twd.clearRequestMockRules()`.
-
-> **Cross-origin requests**: The mock service worker intercepts **all** requests made from the page, including cross-origin URLs (e.g., third-party APIs like payment providers or analytics services). You can mock any URL your frontend calls, regardless of domain.
-
-#### Full `mockRequest` Options
-
-```typescript
-await twd.mockRequest("alias", {
-  method: string,              // HTTP method (GET, POST, PUT, DELETE, etc.)
-  url: string | RegExp,        // URL to match
-  response: unknown,           // Response body (any JSON-serializable value)
-  status?: number,             // HTTP status code (default: 200); 0 simulates a network failure
-  responseHeaders?: Record<string, string>, // Response headers — NOT `headers`, which is silently ignored
-  delay?: number,              // Delays the response only, in ms
-  urlRegex?: boolean,          // Enable regex matching for url (default: false)
-});
-```
-
-- **`delay` holds the response, not the request.** The app sees the request leave at once, so `twd.waitForRequest()` resolves immediately. Use it to assert a loading state, then wait for what the response renders (`findBy*` or `twd.notExists(".spinner")`).
-- **`status: 0`** makes the request fail as a network error — the app's `fetch` rejects instead of resolving with an error status. Use it to test offline or connection-lost handling; use `500` for a server error.
-
-#### WRONG vs RIGHT — `mockRequest`
-
-```typescript
-// WRONG — positional arguments (this API does NOT exist)
-twd.mockRequest("GET", "/api/users", { data: [] }, 200);
-
-// WRONG — using "body" instead of "response"
-await twd.mockRequest("getUsers", {
-  method: "GET",
-  url: "/api/users",
-  body: { data: [] },  // WRONG: the key is "response", not "body"
-  status: 200,
-});
-
-// WRONG — missing await
-twd.mockRequest("getUsers", {
-  method: "GET",
-  url: "/api/users",
-  response: { data: [] },
-  status: 200,
-});
-
-// RIGHT — alias + config object, await, response
-await twd.mockRequest("getUsers", {
-  method: "GET",
-  url: "/api/users",
-  response: { data: [] },
-  status: 200,
-});
-
-// RIGHT — with optional fields
-await twd.mockRequest("slowRequest", {
-  method: "GET",
-  url: "/api/data",
-  response: { items: [] },
-  status: 200,
-  delay: 1000,
-  responseHeaders: { "X-Request-Id": "abc-123" },
-});
-
-// WRONG — unnecessary regex (string match already handles boundaries)
-await twd.mockRequest("getUser", {
-  method: "GET",
-  url: /^\/api\/users$/,
-  urlRegex: true,
-  response: { id: 1, name: "User" },
-});
-
-// RIGHT — string match handles this automatically
-await twd.mockRequest("getUser", {
-  method: "GET",
-  url: "/api/users",
-  response: { id: 1, name: "User" },
-});
-```
+- `url` is boundary-aware string matching: `/api/users` matches `/api/users?page=1` but not `/api/users/123` or `/api/users-x`. Prefer string URLs; hardcode dynamic IDs (`/api/users/456`). `urlRegex: true` only as a last resort — see `test-api.md`.
+- `await twd.waitForRequest("alias")` returns the rule; **`rule.request` is the parsed body** — `expect(rule.request).to.deep.equal({...})`, never `rule.request.body`.
+- Response headers go in `responseHeaders` (`headers` is silently ignored). `status: 0` simulates a network failure.
+- The service worker intercepts cross-origin requests too — mock third-party URLs the same way.
+- When `waitForRequest` times out: `twd.getRequestCounts()` — `0` for the alias means the URL or method never matched.
 
 ### Assertions — Chai Style (NEVER Jest)
 
@@ -160,7 +83,7 @@ expect(flag).toBeTruthy();          // WRONG
 beforeEach(() => {
   twd.clearRequestMockRules();
   twd.clearComponentMocks();
-  // Reset app state if needed — see "State Management & Test Isolation" below
+  // Reset app state if needed — see "State Isolation" below
 });
 ```
 
@@ -179,7 +102,7 @@ describe("Feature Page", () => {
   beforeEach(() => {
     twd.clearRequestMockRules();
     twd.clearComponentMocks();
-    // Reset app state if needed — see "State Management & Test Isolation" below
+    // Reset app state if needed — see "State Isolation" below
   });
 
   it("should load and display items", async () => {
@@ -213,118 +136,6 @@ describe("Feature Page", () => {
 });
 ```
 
----
-
-## Detailed API Reference
-
-### Testing Philosophy: Flow-Based Tests
-
-TWD tests focus on **full user flows**, not granular unit-style assertions. Each `it()` block tests a meaningful user journey through a page.
-
-#### Do
-
-- **One top-level `describe()` per file** — use nested `describe()` for sub-scenarios.
-- Each `it()` covers a **complete flow**: setup mocks → visit → interact → assert outcome.
-- **Multiple assertions per `it()` are expected** — they should tell a story. If you're on the same page with the same mock setup, assert everything there instead of splitting into separate tests.
-- **Combine related checks** — verifying that a page shows a title, a table, and a button is ONE test ("should load and display the payments list"), not three.
-- **Name `it()` blocks after the user journey**, not after individual elements:
-  - `"should load the payment list and display all columns"`
-  - `"should open the create form, fill fields, and submit successfully"`
-  - `"should show validation errors when submitting an empty form"`
-
-#### Don't
-
-- **Don't write one `it()` per UI element** — "should display title", "should display subtitle", "should display button" is three tests that should be one.
-- **Don't create separate tests for trivially combinable checks** — if two assertions share the same setup (same mocks, same page, same state), combine them.
-- **Don't test implementation details** — test what the user sees and does, not internal component state.
-- **Don't name tests after elements** — `"should display Pre payment label"` describes an element, not a flow.
-
-#### Aim for 3–6 Tests per Feature
-
-Most features can be fully covered with 3–6 `it()` blocks organized into these categories:
-
-| # | Category | What it covers | Example `it()` name |
-|---|----------|---------------|---------------------|
-| 1 | **Happy path A** | Main flow end-to-end | `"should load the list and display all items"` |
-| 2 | **Happy path B** | Reverse or alternate flow | `"should edit an existing item and save changes"` |
-| 3 | **Cancel / negative flow** | User aborts or submits invalid data | `"should cancel creation and return to the list"` |
-| 4 | **Access gates** | Feature flag + permission combined | `"should redirect to forbidden when user lacks permission"` |
-| 5 | **Edge cases** | Empty states, errors, backward compat (combine into 1–2 tests) | `"should display empty state when no items exist"` |
-
-If you're writing 10+ tests for a single page, you're likely too granular. Look for tests that can be combined.
-
-#### Good Example — Flow-Based `it()` Names
-
-```typescript
-describe("Payments Page", () => {
-  beforeEach(() => { /* ... */ });
-
-  describe("listing", () => {
-    it("should load the payment list and display all columns", async () => {
-      // Mock GET → visit → wait → assert heading, table rows, column headers
-    });
-
-    it("should display empty state when no payments exist", async () => {
-      // Mock GET with [] → visit → wait → assert empty message
-    });
-  });
-
-  describe("create flow", () => {
-    it("should open the create form, fill fields, and submit successfully", async () => {
-      // Mock GET + POST → visit → click Add → fill form → submit → assert POST body + success
-    });
-
-    it("should show validation errors when submitting an empty form", async () => {
-      // Mock GET → visit → click Add → submit empty → assert error messages
-    });
-
-    it("should cancel creation and return to the list", async () => {
-      // Mock GET → visit → click Add → click Cancel → assert list is visible
-    });
-  });
-});
-```
-
-#### Bad Example — Granular Per-Element Tests (NEVER do this)
-
-```typescript
-// BAD — each it() tests a single element instead of a flow
-describe("Payments Page", () => {
-  it("should display Pre payment label", async () => { /* ... */ });
-  it("should display the payment amount", async () => { /* ... */ });
-  it("should display the payment date", async () => { /* ... */ });
-  it("should display the status badge", async () => { /* ... */ });
-  it("should display the submit button", async () => { /* ... */ });
-  it("should display the cancel button", async () => { /* ... */ });
-  // 6 tests that should be 1: "should load and display the payment details"
-});
-```
-
-#### File Structure — One Top-Level `describe()`
-
-```typescript
-// GOOD — one top-level, nested groups
-describe("Tenant Page", () => {
-  beforeEach(() => { /* shared setup */ });
-
-  describe("listing and search", () => {
-    it("should display the table", async () => { /* ... */ });
-    it("should search tenants", async () => { /* ... */ });
-  });
-
-  describe("CRUD operations", () => {
-    it("should create a new tenant", async () => { /* ... */ });
-    it("should edit an existing tenant", async () => { /* ... */ });
-  });
-});
-```
-
-```typescript
-// BAD — multiple top-level describe blocks
-describe("Tenant listing", () => { /* ... */ });
-describe("Tenant update", () => { /* ... */ });
-```
-
 ### Async/Await (Required)
 
 ```typescript
@@ -341,441 +152,34 @@ await twd.waitFor(() => expect(el).to.have.attribute("disabled"));
 await twd.notExists(".spinner");
 ```
 
-### Element Selection
+### State Isolation
 
-**Preferred: Testing Library `findBy*` queries via `screenDom`**
+`twd.visit()` is an SPA navigation (History API), not a page reload — a reload would destroy the test runner, which lives in the same page. So in-memory app state **persists between tests** unless `beforeEach` resets it:
 
-```typescript
-// By role (RECOMMENDED)
-await screenDom.findByRole("button", { name: "Submit" });
-await screenDom.findByRole("heading", { name: "Welcome", level: 1 });
+| State | Reset in `beforeEach` |
+|---|---|
+| Stores (Zustand, Redux, Jotai, Pinia) | The store's reset method |
+| Query caches (TanStack Query, SWR, Apollo, RTK Query) | The cache singleton's clear — see `.claude/twd-patterns.md` |
+| localStorage / sessionStorage | `localStorage.clear()` |
+| Module singletons | Re-assign to the initial value |
 
-// By label (form inputs)
-await screenDom.findByLabelText("Email Address");
+Listeners and timers the app registers globally are removed in `afterEach`.
 
-// By text
-await screenDom.findByText("Success!");
-await screenDom.findByText(/welcome/i);
+### Component Mocking and Module Stubbing
 
-// By test ID
-await screenDom.findByTestId("user-card");
+- Replacing a third-party component (payment SDK, map, video player): `test-advanced.md` — `MockedComponent`, `twd.mockComponent()` **before** `twd.visit()`, `twd.clearComponentMocks()` in `beforeEach`.
+- Stubbing a hook or module (`useAuth0`, feature flags): `test-api.md` "Module Stubbing with Sinon". Sinon is its own package (`import Sinon from "sinon"`, never `twd-js/sinon`), and only default-export objects can be stubbed.
 
-// Query variants, in order of preference
-await screenDom.findByRole("button");     // Waits for the element — the default
-await screenDom.findAllByRole("button");  // Waits, returns array — the default for lists
-screenDom.getByRole("button");            // Throws at once — only when already rendered
-screenDom.queryByRole("button");          // Returns null — only to assert absence
-```
+### Mistakes the type checker will not catch
 
-`findBy*` waits up to 3000 ms in TWD.
+In a TypeScript project, the type-check step (Phase 3) catches `body:` instead of `response:`, positional `mockRequest` arguments, `headers:` and Jest matchers. In a JavaScript project nothing does — check those by eye. The type checker never catches these:
 
-**For modals/portals use `screenDomGlobal`:**
-
-```typescript
-import { screenDomGlobal } from "twd-js";
-const modal = screenDomGlobal.getByRole("dialog");
-```
-
-**Fallback: CSS selectors via `twd.get()`**
-
-```typescript
-const button = await twd.get("button");
-const byId = await twd.get("#email");
-const multiple = await twd.getAll(".item");
-```
-
-### User Interactions
-
-```typescript
-const user = userEvent.setup();
-
-await user.click(screenDom.getByRole("button", { name: "Save" }));
-await user.type(screenDom.getByLabelText("Email"), "hello@example.com");
-await user.dblClick(element);
-await user.clear(input);
-await user.selectOptions(select, "option-value");
-await user.keyboard("{Enter}");
-await user.tab();                                  // move focus to the next element
-await user.hover(menuTrigger);                     // tooltips, hover menus
-await user.unhover(menuTrigger);
-await user.upload(fileInput, new File(["a,b"], "data.csv", { type: "text/csv" }));
-
-// With twd.get() elements — use .el for raw DOM
-const twdButton = await twd.get(".save-btn");
-await user.click(twdButton.el);
-```
-
-**Range, date, time and color inputs — `twd.setInputValue`.** userEvent cannot drive a slider or a native picker. `twd.setInputValue` sets the value and dispatches the input event the framework listens for. It is synchronous. Use it ONLY for these input types — text inputs, textareas and checkboxes go through userEvent, which fires the real keystroke and click events:
-
-```typescript
-twd.setInputValue(await screenDom.findByLabelText("Volume"), "75");     // type="range"
-twd.setInputValue(await screenDom.findByLabelText("Start"), "13:30");   // type="time"
-twd.setInputValue(await screenDom.findByLabelText("Due"), "2026-12-01"); // type="date"
-```
-
-### Assertions
-
-**Function style (any element):**
-
-```typescript
-twd.should(screenDom.getByRole("button"), "be.visible");
-twd.should(screenDom.getByRole("button"), "have.text", "Submit");
-twd.should(element, "contain.text", "partial");
-twd.should(element, "have.class", "active");
-twd.should(element, "have.attr", "type", "submit");
-twd.should(element, "have.value", "test@example.com");
-twd.should(element, "be.disabled");
-twd.should(element, "be.enabled");
-twd.should(element, "be.checked");
-twd.should(option, "be.selected");     // <option> elements
-twd.should(input, "be.focused");       // focus moved here (after tab, autofocus, a validation error)
-twd.should(element, "be.empty");       // no text content
-twd.should(element, "be.hidden");      // in the DOM but not shown
-twd.should(element, "not.be.visible");
-```
-
-Every assertion takes a `not.` prefix. `be.hidden` is for an element that stays in the DOM (a collapsed panel, a closed `<details>`); for one that is removed, use `screenDom.queryBy*` → `expect(...).to.be.null` or `await twd.notExists(selector)`.
-
-**Method style (on twd elements):**
-
-```typescript
-const el = await twd.get("h1");
-el.should("have.text", "Welcome");
-el.should("be.visible");
-```
-
-**URL assertions:**
-
-```typescript
-await twd.url().should("eq", "http://localhost:3000/dashboard");
-await twd.url().should("contain.url", "/dashboard");
-```
-
-**Chai expect (non-element assertions):**
-
-```typescript
-expect(array).to.have.length(3);
-expect(value).to.equal("expected");
-expect(obj).to.deep.equal({ key: "value" });
-```
-
-### Navigation and Waiting
-
-```typescript
-await twd.visit("/");
-await twd.visit("/login");
-await twd.wait(1000);                         // Wait for time (ms)
-await twd.waitFor(() =>                       // Retry callback until it stops throwing
-  screenDom.getByRole("heading", { name: /dashboard/i })
-, { timeout: 2000, interval: 50, message: "heading to appear" });
-await screenDom.findByText("Success!");        // Wait for element
-await twd.notExists(".loading-spinner");       // Wait for element to NOT exist
-```
-
-> **Note**: `twd.visit()` uses the History API — it does NOT reload the page. See "State Management & Test Isolation" below for implications.
-
-### waitFor vs twd.wait
-
-| Aspect | `twd.waitFor(fn)` | `twd.wait(ms)` |
-|--------|-------------------|----------------|
-| Resolves when | Callback stops throwing | Fixed time elapses |
-| Speed | As fast as the condition is met | Always waits full duration |
-| Reliability | Adapts to timing variations | Fails if operation is slower |
-| Use for | Race conditions — element exists but state isn't ready yet | Intentional delays (animations, debounce testing) |
-
-**Do NOT add `waitFor` to every assertion.** Most TWD assertions work synchronously after `waitForRequest` or `findBy*` resolves. Only reach for `waitFor` when a test **fails** because of a genuine timing issue — the element is in the DOM but its state hasn't updated yet, or the element isn't in the DOM yet after a state change.
-
-`waitFor` is generic — it returns the callback's resolved value, so you can extract a value and assert on it afterward. Keep one condition per callback. Do NOT put actions (like `userEvent.type`) inside — the callback retries from the top on each throw, causing side effects. A guard assertion + return value in the same callback is fine because both are reads.
-
-**Good — targeted retry after a failure (return value pattern):**
-
-```typescript
-// Test failed: heading not in DOM yet after navigation → wrap in waitFor
-const heading = await twd.waitFor(() => screenDom.getByRole("heading", { name: /dashboard/i }));
-twd.should(heading, "be.visible");
-```
-
-**Good — retry until a value exists, then assert on its properties:**
-
-```typescript
-const event = await twd.waitFor(() => {
-  const ev = findEvent("purchase");
-  expect(ev).to.exist;
-  return ev;
-});
-expect(event.customer_type).to.equal("b2c");
-```
-
-**Bad — wrapping everything "just in case":**
-
-```typescript
-// DON'T do this — waitForRequest already ensures data loaded
-await twd.waitForRequest("getItems");
-await twd.waitFor(() => screenDom.getByText("Item One")); // unnecessary
-```
-
-**Bad — putting actions inside the callback:**
-
-```typescript
-// DON'T do this — userEvent.type retries on each throw, typing again and again
-await twd.waitFor(async () => {
-  await userEvent.type(input, "hello");  // types again on every retry!
-  expect(input).to.have.value("hello");
-});
-```
-
-Full API reference: https://twd.dev/api/twd-commands.html#twd-waitfor-callback-options
-Best practice guide: https://twd.dev/api/twd-commands.html#waitfor-vs-twd-wait
-
-### State Management & Test Isolation
-
-TWD runs tests directly in the browser **without page reloads**. The `twd.visit()` command simulates SPA navigation using the History API, which means your SPA router re-renders but **in-memory application state is preserved** between tests.
-
-This is a deliberate trade-off: it keeps tests fast and deterministic, but it means state from tools like Zustand, Redux, Jotai, or plain module-level variables will **leak between tests** unless you explicitly reset it.
-
-#### What TWD resets for you
-
-TWD provides built-in reset methods for its own managed state:
-
-```typescript
-beforeEach(() => {
-  twd.clearRequestMockRules();  // Clears API mock rules
-  twd.clearComponentMocks();    // Clears component mocks
-});
-```
-
-#### What you need to reset manually
-
-Any state that lives in your application's JavaScript memory persists across tests:
-
-| State type | Example | How to reset |
-|---|---|---|
-| State managers | Zustand, Redux, Jotai, Pinia | Call your store's reset method |
-| Browser storage | localStorage, sessionStorage | `localStorage.clear()` |
-| Module singletons | Caches, counters, flags | Re-assign to initial value |
-| Global event listeners | `window.addEventListener(...)` | Remove in `afterEach` |
-| Timers | `setInterval`, `setTimeout` | Clear in `afterEach` |
-
-Most state management libraries provide a way to reset stores to their initial state. Expose a reset method on your stores and call it in `beforeEach`:
-
-```typescript
-import { resetMyStore } from "../../store";
-
-describe("My feature", () => {
-  beforeEach(() => {
-    twd.clearRequestMockRules();
-    twd.clearComponentMocks();
-    resetMyStore();
-    localStorage.clear();
-  });
-
-  it("should start with clean state", async () => {
-    await twd.visit("/my-page");
-    // State is fresh for every test
-  });
-});
-```
-
-#### Why not just reload the page?
-
-TWD's test runner, sidebar UI, mock service worker, and all test definitions live in the same browser page as your app. A full page reload (`window.location.reload()`) would destroy the test runner itself, losing all test results and state. This is the fundamental constraint of in-browser testing — and the same trade-off other in-browser tools face.
-
-### API Mocking
-
-Always mock BEFORE `twd.visit()` or the action that triggers the request.
-
-#### URL Matching — How It Works
-
-> **Priority: use string URLs first, regex only as last resort.**
-
-**1. String match (default, preferred)**
-
-The `url` string is matched against the full request URL using boundary-aware substring matching. Valid boundaries after the match: end-of-string, `?`, `#`, `&`. If the match extends past the query string start, it's always valid.
-
-| Rule `url` | Request URL | Matches? | Why |
-|---|---|---|---|
-| `/api/users` | `http://localhost/api/users` | Yes | End-of-string boundary |
-| `/api/users` | `http://localhost/api/users?page=1` | Yes | `?` boundary |
-| `/api/users` | `/api/users/123` | **No** | `/` is not a valid boundary — sub-paths are different resources |
-| `/api/item` | `/api/items` | **No** | `s` is not a valid boundary — partial segments rejected |
-| `/user` | `/username` | **No** | Same reason — partial segments rejected |
-| `https://api.example.com/search?q=` | `https://api.example.com/search?q=friends` | Yes | Match extends past `?`, always valid |
-
-Requests to URLs with file extensions (`.json`, `.js`, `.css`, `.html`, `.ts`, etc.) are automatically filtered out unless the rule URL also has a file extension.
-
-```typescript
-// Mock GET — string match handles path boundaries automatically
-await twd.mockRequest("getUser", {
-  method: "GET",
-  url: "/api/user/123",
-  response: { id: 123, name: "John Doe" },
-  status: 200,
-});
-
-// For dynamic IDs, hardcode the mock value
-await twd.mockRequest("getUser", {
-  method: "GET",
-  url: "/api/users/456",
-  response: { id: 456, name: "Test User" },
-});
-
-// For external APIs with full domain
-await twd.mockRequest("searchShows", {
-  method: "GET",
-  url: "https://api.tvmaze.com/search/shows?q=",
-  response: [{ show: { name: "Friends" } }],
-});
-```
-
-**2. Regex match (last resort)** — set `urlRegex: true`:
-- Only use when the URL segment is truly unpredictable at mock time
-- Invalid regex strings silently fail (no match, no throw)
-
-```typescript
-// RegExp literal
-await twd.mockRequest("getUserById", {
-  method: "GET",
-  url: /\/api\/users\/\d+/,
-  response: { id: 999, name: "Dynamic User" },
-  urlRegex: true,
-});
-
-// String regex (starts with ^)
-await twd.mockRequest("getUserById", {
-  method: "GET",
-  url: "^.*/api/users/\\d+",
-  response: { id: 999, name: "Dynamic User" },
-  urlRegex: true,
-});
-```
-
-#### Other `mockRequest` patterns
-
-```typescript
-// Mock POST
-await twd.mockRequest("createUser", {
-  method: "POST",
-  url: "/api/users",
-  response: { id: 456, created: true },
-  status: 201,
-});
-
-// Error responses
-await twd.mockRequest("serverError", {
-  method: "GET",
-  url: "/api/data",
-  response: { error: "Server error" },
-  status: 500,
-});
-
-// Wait for request and inspect body
-// IMPORTANT: rule.request IS the body — NOT rule.request.body
-const rule = await twd.waitForRequest("submitForm");
-expect(rule.request).to.deep.equal({ email: "test@example.com" });
-
-// Wait for multiple requests
-await twd.waitForRequests(["getUser", "getPosts"]);
-
-// Wait on the same request twice: re-register the alias in between. That
-// replaces the rule and resets its executed flag; without it the second
-// waitForRequest resolves at once on the first hit.
-const refresh = await screenDom.findByRole("button", { name: "Refresh" });
-await userEvent.click(refresh);
-await twd.waitForRequest("getUser");      // first request
-await twd.mockRequest("getUser", { method: "GET", url: "/api/user", response: { id: 1, name: "John" } });
-await userEvent.click(refresh);
-await twd.waitForRequest("getUser");      // waits for the second one
-
-// Check how many times a mock was hit (useful for debugging)
-expect(twd.getRequestCount("getUser")).to.equal(2);
-
-// Get hit counts for ALL mocks at once
-const counts = twd.getRequestCounts();
-// → { getUser: 2, getPosts: 1 }
-
-// Clear all mocks AND reset counters (always in beforeEach)
-twd.clearRequestMockRules();
-```
-
-### Component Mocking
-
-For component mocking with `MockedComponent` — including replacing third-party SDKs, passing callbacks through mocks, and the refactor-for-testability pattern — read `references/test-advanced.md`.
-
-### Module Stubbing with Sinon
-
-> **Sinon is a separate npm package** — install it with `npm install -D sinon`. Import as `import Sinon from "sinon"`. NEVER import from `twd-js/sinon` — that path does NOT exist.
-
-ESM named exports are IMMUTABLE. Wrap hooks/services in objects with default export:
-
-```typescript
-// hooks/useAuth.ts — CORRECT: stubbable
-const useAuth = () => useAuth0();
-export default { useAuth };
-```
-
-```typescript
-// In test:
-import Sinon from "sinon"; // npm package "sinon", NOT "twd-js/sinon"
-import authModule from "../hooks/useAuth";
-
-Sinon.stub(authModule, "useAuth").returns({
-  isAuthenticated: true,
-  user: { name: "John" },
-});
-// Always Sinon.restore() in beforeEach
-```
-
-#### Stubbable Gate Pattern
-
-**Test what you own, not what you don't own.** Instead of mocking third-party provider internals (Auth0, MSAL, ConfigCat, etc.), create a stubbable boolean gate that skips the provider entirely in tests:
-
-```typescript
-// gates/enableAuth.ts — gate module
-const enableAuth = () => true;
-export default { enableAuth };
-```
-
-```typescript
-// main.tsx — conditionally mount provider
-import enableAuthModule from "./gates/enableAuth";
-
-if (enableAuthModule.enableAuth()) {
-  // mount <MsalProvider>, <Auth0Provider>, etc.
-  renderApp(<AuthProvider><App /></AuthProvider>);
-} else {
-  renderApp(<App />);
-}
-```
-
-```typescript
-// In test — skip the auth provider entirely
-import Sinon from "sinon";
-import enableAuthModule from "../gates/enableAuth";
-
-Sinon.stub(enableAuthModule, "enableAuth").returns(false);
-await twd.visit("/");
-// App renders without auth provider — no hook-count mismatches
-```
-
-This works for any third-party provider (feature flags, analytics, auth). It avoids hook-count mismatches and complex provider mocking — you test your app's behavior, not the library's internals.
-
-### Common Mistakes to AVOID
-
-1. **Forgetting `await`** on `twd.get()`, `userEvent.*`, `twd.visit()`, `screenDom.findBy*`, `twd.waitFor()`, **`twd.mockRequest()`**
-2. **Mocking AFTER visit** — always mock before `twd.visit()`
-3. **Not clearing mocks** — always `twd.clearRequestMockRules()` and `twd.clearComponentMocks()` in `beforeEach`
-4. **Using Node.js APIs** — tests run in the browser, no `fs`, `path`, etc.
-5. **Importing from wrong package** — `describe`/`it`/`beforeEach` from `twd-js/runner`, `expect` from `twd-js`, NOT Jest/Mocha
-6. **Stubbing named exports** — ESM makes them immutable. Use the default-export object pattern
-7. **Writing granular unit tests** — don't write one `it()` per element. Test full user flows. Aim for **3–6 tests per feature** (see "Testing Philosophy" above). Anti-patterns: one `it()` per UI element (`"should display label"`, `"should display button"`), separate tests for checks that share the same setup. If 10+ tests cover a single page, combine them
-8. **Multiple top-level `describe()` blocks** — always use ONE top-level `describe()` per file with nested groups
-9. **Jest-style assertions** — use `expect(x).to.equal(y)` NOT `.toBe(y)`, use `.to.have.length(n)` NOT `.toHaveLength(n)`. TWD uses Chai, not Jest
-10. **Using `body` instead of `response`** in `mockRequest` — the config key is `response`, not `body`
-11. **Wrapping `response` in `JSON.stringify` unnecessarily** — `response` accepts any value directly; only use `JSON.stringify` if the actual API returns a stringified JSON body
-12. **Positional args in `mockRequest`** — always use the alias + config object pattern: `await twd.mockRequest("alias", { method, url, response, status })`
-13. **Importing Sinon from `twd-js/sinon`** — Sinon is a standalone npm package. Import as `import Sinon from "sinon"`, NEVER from `twd-js/sinon` or any `twd-js/*` subpath
-14. **Mocking components AFTER visit** — call `twd.mockComponent()` BEFORE `twd.visit()`, same rule as `mockRequest`
-15. **Not resetting app state between tests** — TWD runs without page reloads, so store state, localStorage, and module singletons persist. Always reset in `beforeEach`
-16. **Using regex when string match suffices** — string matching is boundary-aware: `/api/users` won't match `/api/users/123` or `/api/items`. For dynamic IDs, hardcode the mock value (e.g., `url: "/api/users/456"`). Only use `urlRegex: true` when the segment is truly unpredictable at mock time
-17. **Using `rule.request.body` instead of `rule.request`** — `waitForRequest` returns a rule where `.request` IS the parsed body directly. Writing `rule.request.body.X` throws `Cannot read properties of undefined`. Correct: `expect(rule.request).to.deep.equal({ ... })`
-18. **Using `it.only()` to isolate tests** — use `npx twd-cli run --test "name"` instead, which doesn't require editing the test file and avoids the risk of forgetting to remove `it.only()`
+1. A missing `await` on any call in the async list above
+2. `mockRequest` or `mockComponent` registered after `twd.visit()`
+3. `rule.request.body.x` — `rule.request` is already the body
+4. Runner imports from Jest, Vitest or Mocha instead of `twd-js/runner`
+5. More than one top-level `describe()` in a file
+6. Node APIs (`fs`, `path`) — tests run in the browser
+7. App state not reset in `beforeEach` (see State Isolation)
+8. A regex URL where a string would match
+9. `it.only()` left in a file — isolate with `npx twd-cli run --test "name"` instead
