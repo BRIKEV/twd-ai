@@ -29,6 +29,7 @@ What it does:
 - Generates `.claude/twd-patterns.md` with project-specific patterns
 - Installs `twd-js` and `twd-cli`, writes `twd.config.json` and a `test:ci` script
 - Wires the `twd()` Vite plugin (or a dev-only `initTWD` block for non-Vite projects)
+- Runs the suite once against your dev server to confirm the wiring
 
 ### `/twd:ci-setup` Command
 
@@ -71,7 +72,7 @@ Reads TWD test files and generates visual Mermaid flowcharts with plain-language
 ```
 
 What it does:
-- Reads all `*.twd.test.{ts,js}` files in the project
+- Reads all `*.twd.test.{ts,tsx,js}` files in the project
 - Generates a `.flows.md` file next to each test file with Mermaid diagrams
 - Creates a `test-flow-gallery.md` index at the project root
 - Each `it()` block gets a plain-language summary + color-coded flowchart

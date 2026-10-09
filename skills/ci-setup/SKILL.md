@@ -238,7 +238,7 @@ Add to the `plugins` array:
 ```typescript
 istanbul({
   include: "src/*",
-  exclude: ["node_modules", "**/*.twd.test.ts"],
+  exclude: ["node_modules", "**/*.twd.test.{ts,tsx}", "**/twd-tests/**"],
   requireEnv: !process.env.CI,
   extension: ['.ts', '.tsx'],
 }),

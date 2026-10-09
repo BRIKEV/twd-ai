@@ -25,7 +25,7 @@ No flags. No arguments. Auto-discover all TWD test files and output the full rep
 
 ### Step 1 — Pre-flight: Detect TWD presence
 
-Glob for `**/*.twd.test.{ts,js}`.
+Glob for `**/*.twd.test.{ts,tsx,js}`.
 
 **If zero TWD tests found → STOP.** Do not generate a report. Instead:
 
@@ -39,7 +39,7 @@ Glob for `**/*.twd.test.{ts,js}`.
 ```
 ## No TWD Tests Found
 
-I found {framework} tests in this project, but no TWD test files (*.twd.test.ts).
+I found {framework} tests in this project, but no TWD test files (*.twd.test.{ts,tsx}).
 
 TWD complements {framework} by adding deterministic, in-browser page-level tests
 that run inside your Vite dev server — fast feedback during development with
@@ -76,6 +76,7 @@ Read each discovered TWD test file in full. For each file, analyze:
 - All `twd.should()` and `expect()` assertions — what they verify
 - All `twd.mockRequest()` calls — methods and status codes
 - `beforeEach`/`afterEach` setup patterns
+- Testing Library `render()` calls — a file that renders and never calls `twd.visit()` is a **component test file** (see "Component Test Files" below)
 
 ### Step 3 — Grade each file
 
@@ -180,6 +181,26 @@ Measures whether tests handle failure scenarios and boundary conditions.
 - `expect(el).to.be.null` after an action → verifying removal/hiding
 - Dialog cancel flow: open → Cancel → verify closed
 - Multiple mock data shapes for the same endpoint
+
+---
+
+## Component Test Files
+
+A file that calls Testing Library's `render()` and never `twd.visit()` tests one component in isolation. Grade it on the same four dimensions and weights, with `render()` standing in for `twd.visit()`:
+
+- **Journey Coverage** — a complete journey is `render()` + at least one `userEvent` interaction + a non-visibility assertion. A dialog opened, filled and submitted counts; rendering and checking `be.visible` does not. "Distinct user goals" are the component's behaviours (validation, open/close, sort), not app pages.
+- **Interaction Depth, Assertion Quality, Error & Edge Cases** — unchanged. Queries use `screen` instead of `screenDom`; read them the same way.
+
+Do not mark a component test file down for having no `twd.visit()` or no URL assertion — it has no route to navigate.
+
+Check its setup and put any problem first in the file's suggestions, whatever the grade:
+
+- `render()` without `{ container: componentHost() }` — the component lands after the app and queries find duplicates
+- `cleanup()` and `restorePage()` missing from `afterEach` (or placed in `beforeEach`) — renders stack up, and the app stays detached for later flow tests
+- `screenDom` queries against the rendered component — they cannot find it
+- Sinon stubs of the project's own hooks or context — component tests use the real providers and mock only the network
+
+In the report, tag the file heading `— Grade X (component)` so readers can tell the two kinds apart.
 
 ---
 
@@ -335,6 +356,6 @@ Overall grade: C
 
 1. **Static analysis only.** Scoring is based on reading test source code. No test execution. Cannot detect runtime issues like flaky assertions or timing problems.
 2. **Heuristic grading.** Letter grades are AI interpretation of the criteria, not deterministic computation. Two runs may produce slightly different notes, but grades should be consistent for the same file.
-3. **TWD only.** Only scores `*.twd.test.{ts,js}` files. Tests in other frameworks are invisible.
+3. **TWD only.** Only scores `*.twd.test.{ts,tsx,js}` files. Tests in other frameworks are invisible.
 4. **No cross-file analysis.** Each file is scored independently. Cannot detect project-wide patterns like "all files lack error tests."
 5. **No permission/access dimension in v1.** RBAC testing quality is not scored. If the project uses permission mocking, this is noted in the Journey Coverage notes but doesn't have its own dimension.

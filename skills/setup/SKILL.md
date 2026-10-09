@@ -2,7 +2,7 @@
 name: setup
 description: Configures TWD for a project — detects settings, generates .claude/twd-patterns.md, installs twd-js and twd-cli, writes twd.config.json, and wires up the twd() Vite plugin (or the manual initTWD entry-file approach for non-Vite projects)
 disable-model-invocation: true
-allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(npm install *), Bash(npx twd-js init *), Bash(git symbolic-ref *), Bash(git -C * symbolic-ref *), AskUserQuestion]
+allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(npm install *), Bash(npx twd-js init *), Bash(npx twd-cli run), Bash(curl -s *), Bash(git symbolic-ref *), Bash(git -C * symbolic-ref *), AskUserQuestion]
 ---
 
 # TWD Project Setup
@@ -36,7 +36,7 @@ Read these files to pre-fill answers (read all in parallel):
    )
    ```
 
-   The `isVite` flag drives entry-file and plugin decisions in Step 4. Vite-based projects (the default and most common case) use the new `twd()` Vite plugin (auto-injects `initTWD` via a virtual module); non-Vite projects (Angular CLI, Webpack/CRA) fall back to the manual `if (import.meta.env.DEV) { initTWD(...) }` block in the entry file.
+   The `isVite` flag drives entry-file and plugin decisions in Step 4. Vite-based projects (the default and most common case) use the new `twd()` Vite plugin (auto-injects `initTWD` via a virtual module); non-Vite projects (Angular CLI, Webpack/CRA) fall back to a manual `initTWD(...)` block in the entry file, behind a build-time guard (`TWD_ENABLED` define for Angular, `process.env.NODE_ENV` for Webpack).
 
    Edge case — Astro: Astro projects use Vite under the hood but configure plugins in `astro.config.mjs` under `vite.plugins`. If `astro.config.*` exists, treat as Vite (`isVite = true`) and adapt Step 4 sub-step 4 to write into `astro.config.mjs`'s `vite.plugins` block.
 
@@ -286,7 +286,7 @@ Using Step 1 item 11 and the entry-file and Vite-config checks, list which of th
 
 1. `npm install --save-dev twd-js twd-cli` — skip packages already in `devDependencies`.
 
-   Both are dev-only: `twd-js` is loaded behind `import.meta.env.DEV` (or the equivalent dev guard) and `twd-cli` is the test runner. They must NOT land in `dependencies`.
+   Both are dev-only: `twd-js` is loaded behind a dev guard the bundler folds at build time and `twd-cli` is the test runner. They must NOT land in `dependencies`.
 2. `npx twd-js init PUBLIC_DIR --save`
 3. Configure the entry point. **Before modifying the entry file, search it for an existing `initTWD(` call.** If found, the project has manual boilerplate from an earlier setup. On the Vite path ask via `AskUserQuestion`:
 
@@ -300,17 +300,54 @@ Using Step 1 item 11 and the entry-file and Vite-config checks, list which of th
 
    #### Branch B — non-Vite project (`isVite = false`)
 
-   Insert a dev-only block BEFORE the app mount code (before `createRoot`, `createApp`, `bootstrapApplication`):
+   Insert a dev-only block BEFORE the app mount code (before `createRoot`, `bootstrapApplication`). The guard must be a value the bundler folds to a constant at build time, or the test files and twd-js ship in production as dead lazy chunks.
+
+   **Angular** — guard on a `TWD_ENABLED` constant from `angular.json`'s `define`. **Never `isDevMode()`**: it is a runtime function call, so esbuild keeps the branch and every `await import()` in it (about 580 K of dead chunks, React included, in a typical app):
 
    ```typescript
-   // src/main.{ts,tsx} — non-Vite path (Webpack/CRA, etc.)
-   if (typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
+   // src/main.ts — Angular path
+   // Replaced at build time by the `define` option in angular.json.
+   // Declared as possibly undefined so a missing `define` cannot throw at module scope.
+   declare const TWD_ENABLED: boolean | undefined;
+
+   if (typeof TWD_ENABLED !== 'undefined' && TWD_ENABLED) {
      const { initTWD } = await import('twd-js/bundled');
-     // For projects without import.meta.glob support, build the tests object manually:
      const tests = {
        './twd-tests/example.twd.test.ts': () => import('./twd-tests/example.twd.test'),
      };
+     initTWD(tests, { open: true, position: 'left' });
+   } else if (typeof TWD_ENABLED === 'undefined') {
+     console.warn('[TWD] TWD_ENABLED is not defined — add the `define` option to angular.json.');
+   }
+   ```
 
+   And in `angular.json`, under `projects.<name>.architect.build` — off by default, on for `development` only:
+
+   ```jsonc
+   "options": {
+     "define": { "TWD_ENABLED": "false" }
+   },
+   "configurations": {
+     "development": {
+       "define": { "TWD_ENABLED": "true" }
+     }
+   }
+   ```
+
+   Keep the `typeof` check. A bare `if (TWD_ENABLED)` throws at module scope when a build configuration lacks the `define`, before `bootstrapApplication`, and the page renders nothing. Angular has no `import.meta.glob`, so list each test file in `tests` by hand, and add new files there as they are written.
+
+   **Webpack / CRA** — guard on `process.env.NODE_ENV` and discover tests with `require.context`:
+
+   ```javascript
+   // src/index.{js,tsx} — Webpack path
+   if (process.env.NODE_ENV === 'development') {
+     const context = require.context('./', true, /\.twd\.test\.ts$/);
+     const tests = {};
+     context.keys().forEach((key) => {
+       tests[key] = async () => Promise.resolve(context(key));
+     });
+
+     const { initTWD } = await import('twd-js/bundled');
      initTWD(tests, {
        open: true,
        position: 'left',
@@ -320,20 +357,7 @@ Using Step 1 item 11 and the entry-file and Vite-config checks, list which of th
    }
    ```
 
-   For **Angular**, use `isDevMode()` from `@angular/core` instead of `import.meta.env.DEV`:
-
-   ```typescript
-   // src/main.ts — Angular path
-   import { isDevMode } from '@angular/core';
-
-   if (isDevMode()) {
-     const { initTWD } = await import('twd-js/bundled');
-     const tests = {
-       './twd-tests/example.twd.test.ts': () => import('./twd-tests/example.twd.test'),
-     };
-     initTWD(tests, { open: true, position: 'left' });
-   }
-   ```
+   If the project also runs Jest, keep it off the TWD files (`--testPathIgnorePatterns=src/twd-tests`).
 
    > **Non-Vite, non-root base path:** set `serviceWorkerUrl` to `'/BASE/mock-sw.js'`. The Vite plugin handles base-prefixing itself — do NOT pre-prefix `serviceWorkerUrl` in the plugin options.
 
@@ -475,6 +499,17 @@ Using Step 1 item 11 and the entry-file and Vite-config checks, list which of th
 
    > **Rules for this scaffold**: Only include `Sinon.restore()` in beforeEach if third-party modules were configured. Only include client store reset if a client state library was configured. Only include the server-state cache reset (e.g. `queryClient.clear()`) if a server-state cache was configured AND the user provided a path or accepted scaffolding (sub-step 5). The `it` blocks must be empty with a comment pointing to the `/twd` skill. If the user specified a different test location, use that instead of `src/twd-tests/`.
 
+10. **Verify the wiring with one run.** Probe the app URL once:
+
+    ```bash
+    curl -s --max-time 3 -o /dev/null -w '%{http_code}' APP_URL
+    ```
+
+    - **Any HTTP status** — the dev server is up. Run `npx twd-cli run`, then read `.twd/report/run.json`. `"outcome": "passed"` with the scaffold's tests listed means the sidebar mounted, the tests were discovered and the runner reached them: setup works. On `interrupted`, `error.message` names what is missing — a sidebar that never appeared means the `twd()` plugin (or the entry-file block) is not active, a `No tests matched` or empty run means `testFilePattern` (or the Angular `tests` object) does not cover the scaffold. Fix it and run once more.
+    - **`000`** — nothing is serving. Do not start the server yourself and do not poll. Tell the user to start it with `DEV_COMMAND` and run `npm run test:ci` to confirm.
+
+    The scaffold's `it` blocks are empty, so a pass proves the wiring, not the app.
+
 Only run steps the user approves. Show what each step does before executing.
 
 ## Output
@@ -486,8 +521,8 @@ When done, summarize:
 - **Server-state cache handling** (if applicable) — which library, the import path used in `QUERY_CACHE_RESET`, and whether the singleton was scaffolded or already existed
 - **Runner** — twd-cli installed, `twd.config.json` written or merged (show its contents), `test:ci` added or kept, `.twd/` added to `.gitignore` or already there
 - What setup steps were completed
+- **Verification run** — its `outcome` from `run.json`, or that the dev server was not running and the user should run `npm run test:ci` once it is
 - Next steps, in this order:
-  1. Start the app with `DEV_COMMAND`
-  2. Open `APP_URL` and confirm the TWD sidebar appears
-  3. Ask for tests (the `twd` skill writes and runs them headlessly)
-  4. Optionally run `/twd:ci-setup` for a GitHub Actions workflow
+  1. If the verification run did not happen: start the app with `DEV_COMMAND` and run `npm run test:ci`
+  2. Ask for tests (the `twd` skill writes and runs them headlessly)
+  3. Optionally run `/twd:ci-setup` for a GitHub Actions workflow

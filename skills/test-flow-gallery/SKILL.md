@@ -17,9 +17,9 @@ You are **framework-agnostic** — you read TWD test files regardless of whether
 
 Parse the argument passed to this skill:
 
-- **Specific file** (ends with `.twd.test.ts` or `.twd.test.js`): use that file only
-- **Directory**: glob `*.twd.test.{ts,js}` within that directory
-- **No argument**: glob `**/*.twd.test.{ts,js}` from the project root
+- **Specific file** (ends with `.twd.test.ts`, `.twd.test.tsx` or `.twd.test.js`): use that file only
+- **Directory**: glob `*.twd.test.{ts,tsx,js}` within that directory
+- **No argument**: glob `**/*.twd.test.{ts,tsx,js}` from the project root
 
 If no test files are found, tell the user and stop.
 
@@ -31,8 +31,9 @@ Read each discovered test file in full.
 
 For each test file, produce a `.flows.md` file **co-located next to the test file**.
 
-Naming: strip the `.twd.test.ts` or `.twd.test.js` extension and append `.flows.md`.
+Naming: strip the `.twd.test.ts`, `.twd.test.tsx` or `.twd.test.js` extension and append `.flows.md`.
 - `checkout.twd.test.ts` → `checkout.flows.md`
+- `add-dialog.twd.test.tsx` → `add-dialog.flows.md`
 - `user-dashboard.twd.test.js` → `user-dashboard.flows.md`
 
 Each `it()` block gets its own section with:
@@ -67,6 +68,7 @@ Map TWD test commands to semantic diagram nodes.
 | TWD Command | Node Type | Mermaid Shape | Class |
 |---|---|---|---|
 | `twd.visit('/route')` | Page entry | Stadium `([...])` | `visit` |
+| `render(<Component />)` (Testing Library) | Component entry — label it with the component name | Stadium `([...])` | `visit` |
 | `userEvent.click()` | User action | Rectangle `[...]` | `action` |
 | `userEvent.dblClick()` | User action | Rectangle `[...]` | `action` |
 | `userEvent.type()` | User input | Rectangle `[...]` | `action` |
@@ -90,6 +92,7 @@ Map TWD test commands to semantic diagram nodes.
 | `expect(...).to.be.null` | Absence check | Hexagon `{{...}}` | `disabled` |
 | `screenDom.findByRole()` | Async wait + assert | Hexagon `{{...}}` | `assert` |
 | `screenDom.findByText()` | Async wait + assert | Hexagon `{{...}}` | `assert` |
+| `screen.findBy*()` (component tests) | Async wait + assert | Hexagon `{{...}}` | `assert` |
 | `twd.notExists()` | Element gone assertion | Hexagon `{{...}}` | `disabled` |
 | `twd.url().should(...)` | URL assertion | Hexagon `{{...}}` | `assert` |
 | Warning/alert assertions | Warning | Hexagon `{{...}}` | `warning` |
@@ -116,6 +119,7 @@ These items should NOT appear as nodes in the diagram:
 - `twd.clearRequestMockRules()` / `twd.clearComponentMocks()`
 - Test utility setup (language, feature flags, user mocks) — mention in summary text instead
 - `userEvent.setup()` — boilerplate, not a meaningful user action
+- `cleanup()` / `restorePage()` / `componentHost()` — component test plumbing
 - `Sinon.stub()` / `Sinon.restore()` — module stubbing setup, mention in summary text instead
 - `twd.mockComponent()` / `twd.clearComponentMocks()` — component mocking setup, mention in summary text instead
 - `twd.waitForRequest()` / `twd.waitForRequests()` — internal plumbing, not user-visible flow

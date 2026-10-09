@@ -74,7 +74,7 @@ export default defineConfig({
     // ... other plugins (framework plugin, twd, etc.)
     istanbul({
       include: "src/*",
-      exclude: ["node_modules", "**/*.twd.test.ts"],
+      exclude: ["node_modules", "**/*.twd.test.{ts,tsx}", "**/twd-tests/**"],
       extension: ['.ts', '.tsx'],
       requireEnv: !process.env.CI,
     }),
@@ -516,7 +516,7 @@ jobs:
 
       - name: Record the tests this branch added
         id: rec
-        uses: BRIKEV/twd-cli/.github/actions/record@v1.8.0
+        uses: BRIKEV/twd-cli/.github/actions/record@v1.10.0
         with:
           changed-since: ${{ github.event.pull_request.base.sha }}
           artifact-name: twd-recording-pr-${{ github.event.pull_request.number }}
@@ -569,7 +569,7 @@ nothing until a label of that name exists and is applied.
 | Input | Default | Description |
 |-------|---------|-------------|
 | `working-directory` | `.` | Directory where `twd.config.json` lives |
-| `cli-version` | `1.8.0` | `twd-cli` version to run, pinned by default |
+| `cli-version` | `1.10.0` | `twd-cli` version to run, pinned by default |
 | `changed-since` | (empty) | Record only the tests the branch added or changed since this ref. Needs `fetch-depth: 0`. Mutually exclusive with `tests` |
 | `tests` | (empty) | Newline-separated test titles, each becoming one `--test` filter, OR'd. Mutually exclusive with `changed-since` |
 | `pace` | (empty) | Milliseconds held after each command (`--record-pace`). Empty uses the CLI default of 300; `0` disables pacing |

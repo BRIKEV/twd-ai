@@ -23,7 +23,7 @@ No flags. No arguments. Auto-discover everything and output the full report to c
 
 ### Step 1 — Pre-flight: Detect TWD presence
 
-Glob for `**/*.twd.test.{ts,js}`.
+Glob for `**/*.twd.test.{ts,tsx,js}`.
 
 **If zero TWD tests found → STOP.** Do not generate a report. Instead:
 
@@ -37,7 +37,7 @@ Glob for `**/*.twd.test.{ts,js}`.
 ```
 ## No TWD Tests Found
 
-I found {framework} tests in this project, but no TWD test files (*.twd.test.ts).
+I found {framework} tests in this project, but no TWD test files (*.twd.test.{ts,tsx}).
 
 TWD complements {framework} by adding deterministic, in-browser page-level tests
 that run inside your Vite dev server — fast feedback during development with
@@ -111,6 +111,8 @@ Read all TWD test files found in Step 1. For each file, extract:
 - **All `twd.visit()` calls** — URL strings (string literals, template literals, same-file constant references). Include `visit()` calls inside `beforeEach` blocks — these apply to every `it()` in the same `describe` scope.
 - **All `twd.mockRequest()` calls** — method + URL for each mock (including those in `beforeEach`)
 - **Interaction depth** — does the test have `userEvent.*` calls (click, type, clear, selectOptions, keyboard, dblClick) or is it visit-only?
+
+**Component tests cover no route.** A file that calls Testing Library's `render()` and never `twd.visit()` tests a component in isolation. It adds nothing to the tested-route set — do not credit the page that uses the component. Mention the components it covers in that page's "What's Covered" cell when the page is otherwise partially tested.
 
 **URL extraction rules:**
 
@@ -295,7 +297,7 @@ Generated: 2026-03-17
 
 ## Limitations
 
-1. **TWD only.** Only scans `*.twd.test.{ts,js}` files. Tests in other frameworks (Vitest, Playwright, Cypress, Jest) are invisible to the gap analysis (but detected during pre-flight).
+1. **TWD only.** Only scans `*.twd.test.{ts,tsx,js}` files. Tests in other frameworks (Vitest, Playwright, Cypress, Jest) are invisible to the gap analysis (but detected during pre-flight).
 2. **Heuristic route matching.** Route-to-test matching is best-effort. Cannot trace runtime navigation or dynamic route registration.
 3. **No quality analysis.** A route with a single `be.visible` assertion shows as TESTED same as one with 20 thorough tests. Partial detection is limited to visit-only and missing mutation mocks.
 4. **Variable resolution is same-file only.** Cannot follow imported URL constants across modules.

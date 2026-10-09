@@ -53,44 +53,95 @@ test: {
 },
 ```
 
-### 4. `cleanup()` in `beforeEach` (required)
+### 4. The component host helper (required)
 
-`render()` appends to the document and removes nothing on its own. In jsdom the environment is torn down between files. In a real browser it is not, so renders stack up and queries start finding duplicates.
+`render()` appends its container to `document.body`, after the app root, and the app's own DOM stays on the page, so `screen` matches the app's elements as well as the ones the test rendered. One helper solves both without touching the app. Create it once per project, next to the tests:
+
+```ts
+// src/twd-tests/support/componentHost.ts
+const HOST_ID = 'twd-component-host';
+const APP_ROOT_ID = 'root'; // 'app' in a default Vue app
+
+let appRoot: HTMLElement | null = null;
+let placeholder: Comment | null = null;
+
+/** The element component tests render into: a blank div on an empty page. */
+export function componentHost(): HTMLElement {
+  detachApp();
+
+  let host = document.getElementById(HOST_ID);
+  if (!host) {
+    host = document.createElement('div');
+    host.id = HOST_ID;
+  }
+  if (!host.isConnected) {
+    document.body.prepend(host);
+  }
+
+  host.innerHTML = '';
+  return host;
+}
+
+/** Removes the host and puts the app back. Call it in afterEach. */
+export function restorePage(): void {
+  document.getElementById(HOST_ID)?.remove();
+  attachApp();
+}
+
+function detachApp(): void {
+  if (placeholder) return;
+
+  const root = document.getElementById(APP_ROOT_ID);
+  if (!root) return;
+
+  appRoot = root;
+  placeholder = document.createComment(' app detached by twd component test ');
+  root.replaceWith(placeholder);
+}
+
+function attachApp(): void {
+  if (!placeholder || !appRoot) return;
+
+  placeholder.replaceWith(appRoot);
+  placeholder = null;
+  appRoot = null;
+}
+```
+
+Set `APP_ROOT_ID` to the id of the element the app mounts into (read `index.html`). Two details matter, so do not "simplify" them:
+
+- **Detach the app root, never empty it.** `root.innerHTML = ''` pulls the DOM out from under the framework while it still holds references to those nodes, and the app does not come back. Moving the node out and putting it back keeps those references, so `restorePage()` returns a live app.
+- **Prepend the host, do not append it.** That puts the component at the top of the page and inside the offset TWD applies for its sidebar.
+
+Pass the host as the `container`: `render(<Add />, { container: componentHost() })`. No route and no `twd.visit()` are needed.
+
+### 5. `cleanup()` and `restorePage()` in `afterEach` (required)
+
+`render()` removes nothing on its own. In jsdom the environment is torn down between files; in a real browser it is not, so renders stack up and queries start finding duplicates. And without `restorePage()` the app root is never put back, so every flow test after the component tests sees a blank page.
 
 ```tsx
 import { cleanup } from "@testing-library/react";
+import { afterEach } from "twd-js/runner";
+import { restorePage } from "./support/componentHost";
 
-beforeEach(() => {
+afterEach(() => {
   cleanup();
-  twd.clearRequestMockRules();
+  restorePage();
 });
 ```
 
-### 5. A blank route to render into (recommended)
-
-Optional, but worth having. With `cleanup()` in place renders no longer stack up, so it is not required. It still helps: mounting a component on top of a page that already renders it makes queries find two of everything and Testing Library throws.
-
-The idea is framework-neutral. The router needs one route that renders nothing, and the suite visits it once before rendering.
-
-```tsx
-// React Router
-<Route path="testing-library" element={<div />} />
-```
-
-```ts
-await twd.visit("/testing-library");
-```
+Use `afterEach`, not `beforeEach`: TWD runs after-hooks in a `finally`, so they run even when the test fails, and the app is back before the next flow test needs it. `twd.clearRequestMockRules()` stays in `beforeEach` as usual.
 
 ## Queries: use `screen`, NOT `screenDom`
 
 This is the trap that wastes the most time.
 
-`render()` mounts into a fresh `div` appended to `document.body`, which is **outside** the app root that `screenDom` scopes to. `screenDom` queries will fail to find your component.
+`render()` mounts into the component host, which sits **outside** the app root that `screenDom` scopes to (and the app root is detached while the test runs). `screenDom` queries will fail to find your component.
 
 Everywhere else in TWD, `screenDom` is the right default because it excludes the sidebar. Component tests are the exception.
 
 ```ts
-// Works — render() mounted into document.body
+// Works — render() mounted into the component host
 screen.getByText("Add Item");
 screenDomGlobal.getByRole("button", { name: "Add Item" });
 
@@ -119,15 +170,20 @@ await twd.mockRequest("createCar", {
 
 ```tsx
 import { render, screen, cleanup } from "@testing-library/react";
-import { describe, it, beforeEach } from "twd-js/runner";
+import { describe, it, beforeEach, afterEach } from "twd-js/runner";
 import { twd, userEvent } from "twd-js";
 import { AppProvider } from "@/context/AppContext";
 import { Add } from "../Add";
+import { componentHost, restorePage } from "./support/componentHost";
 
 describe("Add Component", () => {
   beforeEach(() => {
-    cleanup();
     twd.clearRequestMockRules();
+  });
+
+  afterEach(() => {
+    cleanup();
+    restorePage();
   });
 
   it("should open the dialog, fill the form, and submit", async () => {
@@ -138,8 +194,7 @@ describe("Add Component", () => {
       response: { id: "test-1", model: "Golf" },
     });
 
-    await twd.visit("/testing-library");
-    render(<AppProvider><Add /></AppProvider>);
+    render(<AppProvider><Add /></AppProvider>, { container: componentHost() });
 
     twd.should(screen.getByText("Add Item"), "be.visible");
 
@@ -160,7 +215,7 @@ describe("Add Component", () => {
 
 `@testing-library/react` is the verified path and the one these examples use.
 
-The same approach is expected to work with `@testing-library/vue` and `@testing-library/solid`, since Testing Library was never tied to jsdom, but this has not been verified. Do not assume it works for a framework the project has not already proven. Make no claim about Angular, whose `TestBed` is a different problem inside a running dev server.
+The same approach is expected to work with `@testing-library/vue` and `@testing-library/solid`: both take the same `container` option, so the helper transfers with `APP_ROOT_ID` set to the app's mount element (`'app'` in a default Vue app). This has not been verified. Do not assume it works for a framework the project has not already proven. Make no claim about Angular: `@testing-library/angular` mounts through `TestBed` and takes no `container`, so the helper does not apply.
 
 ## Common mistakes to AVOID
 
@@ -173,9 +228,21 @@ screenDom.getByText("Add Item");  // fails — render() mounts outside the app r
 
 Use `screen` or `screenDomGlobal`.
 
-### DON'T: forget `cleanup()`
+### DON'T: render without the component host
 
-Without it, renders accumulate across tests and queries throw "found multiple elements".
+```tsx
+render(<Add />);  // appended after the app — queries find two of everything
+```
+
+Pass `{ container: componentHost() }`.
+
+### DON'T: forget `cleanup()` and `restorePage()` in `afterEach`
+
+Without `cleanup()`, renders accumulate across tests and queries throw "found multiple elements". Without `restorePage()`, the app root stays detached and every flow test after this file sees a blank page. Put both in `afterEach`, not `beforeEach`.
+
+### DON'T: empty the app root instead of detaching it
+
+`document.getElementById('root').innerHTML = ''` leaves the framework holding dead nodes and the app never comes back. The helper moves the node out and puts it back.
 
 ### DON'T: write a `.tsx` test without checking `testFilePattern`
 

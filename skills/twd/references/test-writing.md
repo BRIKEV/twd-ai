@@ -27,13 +27,20 @@ NEVER import `describe`, `it`, `beforeEach`, `expect` from Jest, Mocha, Vitest, 
 
 ### Element Selection Priority
 
-1. `screenDom.getByRole("button", { name: "Submit" })` — by ARIA role (preferred)
-2. `screenDom.getByLabelText("Email")` — form inputs by label
-3. `screenDom.getByText("Success!")` — by visible text
-4. `screenDom.getByTestId("user-card")` — by test ID (last resort)
-5. `await twd.get("#id")` / `await twd.get(".class")` — CSS selector fallback
+**Query variant — `findBy*` first.** UI in a real app renders asynchronously (after navigation, fetches, state updates), so default to the variant that waits:
 
-For async elements: `await screenDom.findByRole(...)` (waits for element).
+1. `await screenDom.findBy*(...)` — waits for the element to appear. **The default.** `findAllBy*` for lists
+2. `screenDom.getBy*(...)` — synchronous, throws at once. Only when the element is certainly already rendered
+3. `screenDom.queryBy*(...)` — returns `null`. **Only** to assert that something is absent
+
+**Query type — by what the user perceives:**
+
+1. `ByRole("button", { name: "Submit" })` — by ARIA role (preferred)
+2. `ByLabelText("Email")` — form inputs by label
+3. `ByText("Success!")` — by visible text
+4. `ByTestId("user-card")` — by test ID (last resort)
+5. `await twd.get("#id")` / `await twd.get(".class")` — CSS selector fallback, after every Testing Library query
+
 For portals/modals: use `screenDomGlobal` instead of `screenDom`.
 
 ### Standard `mockRequest` Pattern
@@ -50,7 +57,7 @@ await twd.visit("/page");
 await twd.waitForRequest("labelName");
 ```
 
-> **Important**: `mockRequest` always needs `await`. The second argument uses `response` (NOT `body`). The signature is: `await twd.mockRequest("alias", { method, url, response, status?, headers?, responseHeaders?, delay?, urlRegex? })`. The `response` field accepts any value — objects, arrays, strings, `null`, etc.
+> **Important**: `mockRequest` always needs `await`. The second argument uses `response` (NOT `body`). The signature is: `await twd.mockRequest("alias", { method, url, response, status?, responseHeaders?, delay?, urlRegex? })`. The `response` field accepts any value — objects, arrays, strings, `null`, etc.
 
 > **Debugging mock matches**: `twd.getRequestCount("alias")` returns how many times a mock was hit. `twd.getRequestCounts()` returns `{ alias: count, ... }` for all mocks. Use these when `waitForRequest` times out to check if the URL/method is matching. Counters reset with `twd.clearRequestMockRules()`.
 
@@ -63,13 +70,15 @@ await twd.mockRequest("alias", {
   method: string,              // HTTP method (GET, POST, PUT, DELETE, etc.)
   url: string | RegExp,        // URL to match
   response: unknown,           // Response body (any JSON-serializable value)
-  status?: number,             // HTTP status code (default: 200)
-  headers?: Record<string, string>,         // Response headers
-  responseHeaders?: Record<string, string>, // Alternative name for headers
-  delay?: number,              // Simulated network delay in ms
+  status?: number,             // HTTP status code (default: 200); 0 simulates a network failure
+  responseHeaders?: Record<string, string>, // Response headers — NOT `headers`, which is silently ignored
+  delay?: number,              // Delays the response only, in ms
   urlRegex?: boolean,          // Enable regex matching for url (default: false)
 });
 ```
+
+- **`delay` holds the response, not the request.** The app sees the request leave at once, so `twd.waitForRequest()` resolves immediately. Use it to assert a loading state, then wait for what the response renders (`findBy*` or `twd.notExists(".spinner")`).
+- **`status: 0`** makes the request fail as a network error — the app's `fetch` rejects instead of resolving with an error status. Use it to test offline or connection-lost handling; use `500` for a server error.
 
 #### WRONG vs RIGHT — `mockRequest`
 
@@ -184,8 +193,8 @@ describe("Feature Page", () => {
     await twd.visit("/items");
     await twd.waitForRequest("getItems");
 
-    twd.should(screenDom.getByRole("heading", { name: "Items" }), "be.visible");
-    expect(screenDom.getAllByRole("listitem")).to.have.length(2);
+    twd.should(await screenDom.findByRole("heading", { name: "Items" }), "be.visible");
+    expect(await screenDom.findAllByRole("listitem")).to.have.length(2);
   });
 
   it("should show empty state", async () => {
@@ -199,7 +208,7 @@ describe("Feature Page", () => {
     await twd.visit("/items");
     await twd.waitForRequest("getItems");
 
-    twd.should(screenDom.getByText(/no items found/i), "be.visible");
+    twd.should(await screenDom.findByText(/no items found/i), "be.visible");
   });
 });
 ```
@@ -334,29 +343,31 @@ await twd.notExists(".spinner");
 
 ### Element Selection
 
-**Preferred: Testing Library queries via `screenDom`**
+**Preferred: Testing Library `findBy*` queries via `screenDom`**
 
 ```typescript
 // By role (RECOMMENDED)
-screenDom.getByRole("button", { name: "Submit" });
-screenDom.getByRole("heading", { name: "Welcome", level: 1 });
+await screenDom.findByRole("button", { name: "Submit" });
+await screenDom.findByRole("heading", { name: "Welcome", level: 1 });
 
 // By label (form inputs)
-screenDom.getByLabelText("Email Address");
+await screenDom.findByLabelText("Email Address");
 
 // By text
-screenDom.getByText("Success!");
-screenDom.getByText(/welcome/i);
+await screenDom.findByText("Success!");
+await screenDom.findByText(/welcome/i);
 
 // By test ID
-screenDom.getByTestId("user-card");
+await screenDom.findByTestId("user-card");
 
-// Query variants
-screenDom.getByRole("button");        // Throws if not found
-screenDom.queryByRole("button");      // Returns null if not found
-await screenDom.findByRole("button"); // Waits for element (async)
-screenDom.getAllByRole("button");     // Returns array
+// Query variants, in order of preference
+await screenDom.findByRole("button");     // Waits for the element — the default
+await screenDom.findAllByRole("button");  // Waits, returns array — the default for lists
+screenDom.getByRole("button");            // Throws at once — only when already rendered
+screenDom.queryByRole("button");          // Returns null — only to assert absence
 ```
+
+`findBy*` waits up to 3000 ms in TWD.
 
 **For modals/portals use `screenDomGlobal`:**
 
@@ -384,10 +395,22 @@ await user.dblClick(element);
 await user.clear(input);
 await user.selectOptions(select, "option-value");
 await user.keyboard("{Enter}");
+await user.tab();                                  // move focus to the next element
+await user.hover(menuTrigger);                     // tooltips, hover menus
+await user.unhover(menuTrigger);
+await user.upload(fileInput, new File(["a,b"], "data.csv", { type: "text/csv" }));
 
 // With twd.get() elements — use .el for raw DOM
 const twdButton = await twd.get(".save-btn");
 await user.click(twdButton.el);
+```
+
+**Range, date, time and color inputs — `twd.setInputValue`.** userEvent cannot drive a slider or a native picker. `twd.setInputValue` sets the value and dispatches the input event the framework listens for. It is synchronous. Use it ONLY for these input types — text inputs, textareas and checkboxes go through userEvent, which fires the real keystroke and click events:
+
+```typescript
+twd.setInputValue(await screenDom.findByLabelText("Volume"), "75");     // type="range"
+twd.setInputValue(await screenDom.findByLabelText("Start"), "13:30");   // type="time"
+twd.setInputValue(await screenDom.findByLabelText("Due"), "2026-12-01"); // type="date"
 ```
 
 ### Assertions
@@ -402,9 +425,16 @@ twd.should(element, "have.class", "active");
 twd.should(element, "have.attr", "type", "submit");
 twd.should(element, "have.value", "test@example.com");
 twd.should(element, "be.disabled");
+twd.should(element, "be.enabled");
 twd.should(element, "be.checked");
+twd.should(option, "be.selected");     // <option> elements
+twd.should(input, "be.focused");       // focus moved here (after tab, autofocus, a validation error)
+twd.should(element, "be.empty");       // no text content
+twd.should(element, "be.hidden");      // in the DOM but not shown
 twd.should(element, "not.be.visible");
 ```
+
+Every assertion takes a `not.` prefix. `be.hidden` is for an element that stays in the DOM (a collapsed panel, a closed `<details>`); for one that is removed, use `screenDom.queryBy*` → `expect(...).to.be.null` or `await twd.notExists(selector)`.
 
 **Method style (on twd elements):**
 
@@ -645,6 +675,16 @@ expect(rule.request).to.deep.equal({ email: "test@example.com" });
 
 // Wait for multiple requests
 await twd.waitForRequests(["getUser", "getPosts"]);
+
+// Wait on the same request twice: re-register the alias in between. That
+// replaces the rule and resets its executed flag; without it the second
+// waitForRequest resolves at once on the first hit.
+const refresh = await screenDom.findByRole("button", { name: "Refresh" });
+await userEvent.click(refresh);
+await twd.waitForRequest("getUser");      // first request
+await twd.mockRequest("getUser", { method: "GET", url: "/api/user", response: { id: 1, name: "John" } });
+await userEvent.click(refresh);
+await twd.waitForRequest("getUser");      // waits for the second one
 
 // Check how many times a mock was hit (useful for debugging)
 expect(twd.getRequestCount("getUser")).to.equal(2);
