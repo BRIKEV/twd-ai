@@ -11,15 +11,13 @@ import { twd, userEvent, screenDom, expect } from "twd-js";
 import { describe, it, beforeEach, afterEach } from "twd-js/runner";
 ```
 
-NEVER import `describe`, `it`, `beforeEach`, `expect` from Jest, Mocha, Vitest, or other libraries.
-
 ### File Rules
 
 - Location: `src/twd-tests/` (organize by domain for larger projects)
 - Naming: `*.twd.test.ts` (or `*.twd.test.tsx` if using JSX in mocks or Testing Library `render()`).
   The `twd()` plugin's default `testFilePattern` is `'/**/*.twd.test.ts'`, which matches `.ts` ONLY —
   a `.tsx` file needs `twd({ testFilePattern: '/**/*.twd.test.{ts,tsx}' })` or it is skipped silently
-- **ONE top-level `describe()` per file** — use nested `describe()` for sub-scenarios
+- One top-level `describe()` per file, by convention — nested `describe()` for sub-scenarios
 
 ### Element Selection Priority
 
@@ -59,22 +57,15 @@ await twd.waitForRequest("labelName");
 - The service worker intercepts cross-origin requests too — mock third-party URLs the same way.
 - When `waitForRequest` times out: `twd.getRequestCounts()` — `0` for the alias means the URL or method never matched.
 
-### Assertions — Chai Style (NEVER Jest)
+### Assertions — Chai Style
 
-TWD uses **Chai** assertions via `expect` from `twd-js`. Never use Jest-style matchers.
+`expect` from `twd-js` is **Chai**, so Jest matchers (`toBe`, `toEqual`) do not exist on it:
 
 ```typescript
-// RIGHT — Chai style
 expect(array).to.have.length(3);
 expect(value).to.equal("expected");
 expect(obj).to.deep.equal({ key: "value" });
 expect(flag).to.be.true;
-
-// WRONG — Jest style (these will throw errors)
-expect(array).toHaveLength(3);      // WRONG
-expect(value).toBe("expected");     // WRONG
-expect(obj).toEqual({ key: "v" });  // WRONG
-expect(flag).toBeTruthy();          // WRONG
 ```
 
 ### Standard `beforeEach`
@@ -139,7 +130,7 @@ describe("Feature Page", () => {
 ### Async/Await (Required)
 
 ```typescript
-// These are ALL async — ALWAYS await
+// All async — await each one
 await twd.visit("/page");
 await twd.get("button");
 await twd.getAll(".item");
@@ -170,16 +161,16 @@ Listeners and timers the app registers globally are removed in `afterEach`.
 - Replacing a third-party component (payment SDK, map, video player): `test-advanced.md` — `MockedComponent`, `twd.mockComponent()` **before** `twd.visit()`, `twd.clearComponentMocks()` in `beforeEach`.
 - Stubbing a hook or module (`useAuth0`, feature flags): `test-api.md` "Module Stubbing with Sinon". Sinon is its own package (`import Sinon from "sinon"`, never `twd-js/sinon`), and only default-export objects can be stubbed.
 
-### Mistakes the type checker will not catch
+### What the checks catch, and what they do not
 
-In a TypeScript project, the type-check step (Phase 3) catches `body:` instead of `response:`, positional `mockRequest` arguments, `headers:` and Jest matchers. In a JavaScript project nothing does — check those by eye. The type checker never catches these:
+Before the first run, the self-check runs two checks on the files you wrote:
 
-1. A missing `await` on any call in the async list above
-2. `mockRequest` or `mockComponent` registered after `twd.visit()`
-3. `rule.request.body.x` — `rule.request` is already the body
-4. Runner imports from Jest, Vitest or Mocha instead of `twd-js/runner`
-5. More than one top-level `describe()` in a file
-6. Node APIs (`fs`, `path`) — tests run in the browser
-7. App state not reset in `beforeEach` (see State Isolation)
-8. A regex URL where a string would match
-9. `it.only()` left in a file — isolate with `npx twd-cli run --test "name"` instead
+- **The type check** (TypeScript only) catches `body:` instead of `response:`, positional `mockRequest` arguments, `headers:` and Jest matchers. In a JavaScript project, check those by eye.
+- **`npx twd-lint --fix`** catches a missing `await`, runner imports from Jest/Vitest/Mocha, `rule.request.body` and a leftover `it.only` (isolate with `npx twd-cli run --test "name"` instead).
+
+Neither catches these:
+
+1. `mockRequest` or `mockComponent` registered after `twd.visit()`
+2. Node APIs (`fs`, `path`) — tests run in the browser
+3. App state not reset in `beforeEach` (see State Isolation)
+4. A regex URL where a string would match

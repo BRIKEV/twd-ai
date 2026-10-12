@@ -28,6 +28,7 @@ What it does:
 - Asks about auth middleware, third-party modules, API folder structure
 - Generates `.claude/twd-patterns.md` with project-specific patterns
 - Installs `twd-js` and `twd-cli`, writes `twd.config.json` and a `test:ci` script
+- Adds `twd-lint`: as an ESLint plugin when the project has an ESLint flat config, otherwise as a `lint:twd` script
 - Wires the `twd()` Vite plugin (or a dev-only `initTWD` block for non-Vite projects)
 - Runs the suite once against your dev server to confirm the wiring
 
@@ -43,7 +44,7 @@ What it does:
 - Detects your project setup (framework, Vite config, existing workflows)
 - Installs `twd-cli` if setup has not already
 - Optionally sets up code coverage with `vite-plugin-istanbul` + `nyc` (requires Vite)
-- Generates `.github/workflows/twd-tests.yml`
+- Generates `.github/workflows/twd-tests.yml`, which lints the TWD tests before any server starts
 - Optionally generates `.github/workflows/twd-record.yml` — label a PR `record` and get one video per test the branch added
 - Wires the environment variables and mock-API steps the app needs into **both** workflows — a recording has to start the same app the tests do
 
@@ -59,7 +60,7 @@ Examples:
 The agent follows a 5-phase workflow:
 1. **Detect** — checks project state and reads `.claude/twd-patterns.md`
 2. **Setup** — installs TWD if needed (packages, service worker, entry point)
-3. **Write** — analyzes your app and writes flow-based tests, plus Testing Library `render()` component tests when a component itself is the subject, then type-checks them before the first browser run
+3. **Write** — analyzes your app and writes flow-based tests, plus Testing Library `render()` component tests when a component itself is the subject, then type-checks and lints them (`npx twd-lint --fix`) before the first browser run
 4. **Run & Fix** — probes the dev server, runs tests headlessly via twd-cli, isolates failures with `--test`, fixes them, closes with a full-suite run
 5. **Report** — summarizes coverage and results
 
@@ -182,6 +183,7 @@ Requires Vite as the build tool. Not compatible with SSR-first architectures (Ne
 |---------|---------|-------|
 | `twd-js` | Core testing library | devDependency |
 | `twd-cli` | Headless test runner — the agent loop and CI | devDependency |
+| `twd-lint` | Lints TWD tests: missing `await`, wrong runner imports, `rule.request.body`, `it.only` | devDependency (optional) |
 | `twd-relay` | Watch a run live in your own tab | devDependency (optional) |
 | `vite-plugin-istanbul` | Code coverage instrumentation | devDependency (optional) |
 | `nyc` | Coverage reporting (text, html, lcov) | devDependency (optional) |

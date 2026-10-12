@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: setup-vite-react-query
-description: /twd:setup on the common case, a Vite + React app with TanStack Query
-expected_outcome: The twd() Vite plugin with a .tsx test pattern and no entry-file code, twd.config.json, test:ci, .twd/ ignored, and twd-patterns.md with the type-check command and the query cache reset
+description: /twd:setup on the common case, a Vite + React app with TanStack Query and ESLint
+expected_outcome: The twd() Vite plugin with a .tsx test pattern and no entry-file code, twd.config.json, test:ci, .twd/ ignored, twd-lint as an ESLint plugin, and twd-patterns.md with the type-check command and the query cache reset
 tags: [setup]
 runs: 1
 context:
@@ -15,7 +15,8 @@ execution:
     detected values and the recommended option, approve the edits it proposes,
     and continue. For the query cache: the singleton already exists at
     src/query-client.ts. Package installs, the service worker init and the
-    verification run are not possible here: skip them and say so.
+    verification run are not possible here: skip those commands and say so,
+    but still make the file edits that go with them.
   prompt: /twd:setup
 graders:
   - name: vite-plugin-imported
@@ -44,6 +45,10 @@ graders:
     pattern: '^\.twd/?$'
     flags: m
     target: { source: file, path: .gitignore }
+  - name: twd-lint-eslint-plugin
+    type: regex
+    pattern: 'from\s+["'']twd-lint["''][\s\S]*twd\.configs\.recommended'
+    target: { source: file, path: eslint.config.js }
   # Eval runs refuse writes into .claude/, so the patterns file never lands on
   # disk. Grade the Write the skill attempted, from the trace.
   - name: patterns-file-attempted

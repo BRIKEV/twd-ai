@@ -13,8 +13,24 @@ cat > package.json <<'EOF'
   "dependencies": {
     "@tanstack/react-query": "^5.90.0", "react": "^19.1.0", "react-dom": "^19.1.0"
   },
-  "devDependencies": { "@vitejs/plugin-react": "^5.0.0", "typescript": "~5.9.0", "vite": "^7.1.0" }
+  "devDependencies": {
+    "@eslint/js": "^9.36.0", "@vitejs/plugin-react": "^5.0.0", "eslint": "^9.36.0",
+    "typescript": "~5.9.0", "typescript-eslint": "^8.44.0", "vite": "^7.1.0"
+  }
 }
+EOF
+cat > eslint.config.js <<'EOF'
+import js from '@eslint/js';
+import tseslint from 'typescript-eslint';
+import { defineConfig, globalIgnores } from 'eslint/config';
+
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [js.configs.recommended, tseslint.configs.recommended],
+  },
+]);
 EOF
 cat > vite.config.ts <<'EOF'
 import { defineConfig } from 'vite';

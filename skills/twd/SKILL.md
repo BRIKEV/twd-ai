@@ -2,7 +2,7 @@
 name: twd
 description: TWD agent — writes deterministic in-browser component/page tests that run against the app's own dev server, runs them headlessly via twd-cli, reads the structured failure, fixes and re-runs until green. Complementary to Playwright/Cypress, not a replacement.
 argument-hint: ["run all tests", "test login page", "write tests for user dashboard"]
-allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(npm install --save-dev twd-js twd-cli), Bash(npx twd-js init *), Bash(npx tsc *), Bash(npx vue-tsc *), Bash(npm run typecheck), Bash(npm run type-check), Bash(npx twd-cli run), Bash(npx twd-cli run *), Bash(npx twd-cli report *), Bash(curl -s *), Bash(git symbolic-ref *), Bash(git -C * symbolic-ref *), Bash(npx twd-relay run), Bash(npx twd-relay run *), Task]
+allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(npm install --save-dev twd-js twd-cli), Bash(npx twd-js init *), Bash(npx tsc *), Bash(npx vue-tsc *), Bash(npm run typecheck), Bash(npm run type-check), Bash(npx twd-lint *), Bash(npx twd-cli run), Bash(npx twd-cli run *), Bash(npx twd-cli report *), Bash(curl -s *), Bash(git symbolic-ref *), Bash(git -C * symbolic-ref *), Bash(npx twd-relay run), Bash(npx twd-relay run *), Task]
 context: fork
 agent: general-purpose
 ---
@@ -19,13 +19,14 @@ agent: general-purpose
 
 These rules override everything else. If any rule conflicts with instructions below, the rule here wins.
 
-1. **ONE top-level `describe()` per file.** Nest sub-scenarios with inner `describe()` blocks. Multiple top-level describes break the test runner.
-2. **Use `--test "name"` to isolate failing tests.** Never re-run the full suite to verify a single fix. `npx twd-cli run --test "failing test name"`, repeatable. Matching is a case-insensitive substring of the full describe-path (`"Describe > nested > test name"`) — a `describe` name runs every test under it.
-3. **Mock BEFORE visit.** Always set up `twd.mockRequest()` before `twd.visit()`.
-4. **Always `await` async methods.** `twd.visit()`, `twd.get()`, `userEvent.*`, `screenDom.findBy*`, `twd.waitForRequest()`, `twd.waitFor()`, `twd.mockRequest()`.
-5. **Imports from TWD only.** `describe`/`it`/`beforeEach` from `twd-js/runner`, `expect` from `twd-js` — never from Jest, Mocha, or Vitest. `expect` is **Chai-style**: use `.to.equal()`, `.to.have.length()`, `.to.deep.equal()`, `.to.be.true` — **NEVER** Jest-style `.toBe()`, `.toHaveLength()`, `.toEqual()`, `.toBeTruthy()`.
-6. **`mockRequest` uses alias + config object.** Signature: `await twd.mockRequest("alias", { method, url, response, status?, responseHeaders?, delay?, urlRegex? })`. NEVER use positional arguments. The config key is `response` (NOT `body`). `response` accepts any value (objects, arrays, strings, `null`). ALWAYS `await` the call. `url` uses boundary-aware string matching by default — prefer string URLs, use `urlRegex: true` only as last resort.
-7. **`rule.request` IS the body — NEVER use `rule.request.body`.** `await twd.waitForRequest("alias")` returns a rule where `rule.request` contains the parsed request body directly. Writing `rule.request.body.X` will throw `Cannot read properties of undefined`. Correct: `expect(rule.request).to.deep.equal({ ... })`.
+1. **Use `--test "name"` to isolate failing tests.** Never re-run the full suite to verify a single fix. `npx twd-cli run --test "failing test name"`, repeatable. Matching is a case-insensitive substring of the full describe-path (`"Describe > nested > test name"`) — a `describe` name runs every test under it.
+2. **Mock BEFORE visit.** Always set up `twd.mockRequest()` before `twd.visit()`.
+3. **Await every async TWD call** — the list is in `references/test-writing.md`.
+4. **Runner from `twd-js/runner`, `expect` from `twd-js`.** `expect` is **Chai-style**: `.to.equal()`, `.to.have.length()`, `.to.deep.equal()`, `.to.be.true`.
+5. **`mockRequest` takes an alias and a config object:** `await twd.mockRequest("alias", { method, url, response, status?, responseHeaders?, delay?, urlRegex? })`. The body goes in `response`, which accepts any value (objects, arrays, strings, `null`). `url` is boundary-aware string matching — prefer string URLs, `urlRegex: true` only as a last resort.
+6. **`rule.request` is the request body.** `const rule = await twd.waitForRequest("alias")`, then `expect(rule.request).to.deep.equal({ ... })`.
+
+The type check and `npx twd-lint` (self-check, before Phase 4) enforce 3 to 6.
 
 ---
 
@@ -87,7 +88,7 @@ Before writing tests:
 **Testing philosophy — flow-based tests:**
 
 **Do:**
-- **One top-level `describe()` per file** — use nested `describe()` blocks to group sub-scenarios (e.g. "CRUD", "permissions", "error states").
+- Prefer one top-level `describe()` per file, with nested `describe()` blocks for sub-scenarios (e.g. "CRUD", "permissions", "error states"). It keeps the file one feature; the runner accepts several.
 - Each `it()` covers a **complete user flow**: setup mocks → visit → interact → assert outcome. Multiple assertions per `it()` is expected — they tell a story.
 - **Aim for 3–6 tests per feature**: happy path A (main flow end-to-end), happy path B (alternate flow or role), cancel / negative flow, access gates (feature flag + permission in one test), edge cases (empty states, error responses — combined into one or two tests).
 - Combine related checks into a single `it()` — if you're on the same page with the same mocks, assert everything there.
@@ -108,8 +109,9 @@ it("should cancel creation and return to the list", async () => { /* ... */ });
 
 **Self-check before Phase 4:**
 
-1. Every test file has exactly ONE top-level `describe()`. On Angular, every new file is also listed in the entry file's `tests` object — there is no glob, so an unlisted file never runs.
+1. **Angular only:** every new file is listed in the entry file's `tests` object — there is no glob, so an unlisted file never runs.
 2. **Type-check** (TypeScript projects only). Use `Type-check command` from `twd-patterns.md` (`none` → skip this step). If the line is missing: a `typecheck` or `type-check` script in `package.json` → `npm run <it>`; otherwise `npx vue-tsc --noEmit -p tsconfig.app.json` for Vue, `npx tsc --noEmit -p tsconfig.app.json` when that file exists, else `npx tsc --noEmit`. Fix every error in a file you wrote or touched before the first run — a type error is a wrong API call (`body:` for `response:`, positional `mockRequest` arguments, `headers:`, Jest matchers) that would otherwise cost a browser run to find. Ignore errors in files you did not touch, and mention them in the report.
+3. **Lint** the files you wrote or touched, from the project root: `npx twd-lint <files> --fix`. It works with or without ESLint in the project. `--fix` adds missing `await`s and moves runner imports; fix what it reports after that by hand (each message says how) and re-run until it exits `0`. Exit `2` means no TWD test file at those paths. It catches what the type check cannot: a missing `await`, Jest/Vitest/Mocha imports, `rule.request.body`, a leftover `it.only`. In a file that already existed, an `await` it adds to an assertion (`twd.url().should(...)`) makes that assertion run for the first time, so a test that passed before can now fail: the run decides, not the lint.
 
 ### Phase 4: Run and Fix
 
@@ -137,6 +139,6 @@ Summarize:
 
 - **Package installation**: Only `twd-js` and `twd-cli`
 - **Write scope**: Test files (`src/twd-tests/**`), mock data files (`src/twd-tests/mocks/`), vite config (TWD plugin only), `twd.config.json`, `.gitignore` (the `.twd/` line only), entry point (dev-guarded init block, non-Vite only)
-- **Execution scope**: `npx twd-js init <dir> --save`, `npx twd-cli run [--test --changed-since --record --report-dir]`, `npx twd-cli report`, the project's type-check command (`npx tsc --noEmit`, `npx vue-tsc --noEmit` or its `typecheck` script), `curl -s <url>`, `git symbolic-ref`, and — only through `references/relay.md` — `npx twd-relay run [--port --path --test]`
+- **Execution scope**: `npx twd-js init <dir> --save`, `npx twd-cli run [--test --changed-since --record --report-dir]`, `npx twd-cli report`, the project's type-check command (`npx tsc --noEmit`, `npx vue-tsc --noEmit` or its `typecheck` script), `npx twd-lint <files> [--fix --format json]`, `curl -s <url>`, `git symbolic-ref`, and — only through `references/relay.md` — `npx twd-relay run [--port --path --test]`
 - **No production code**: All TWD code must be behind a guard the bundler folds at build time — the `twd()` plugin on Vite, a `TWD_ENABLED` define on Angular, `process.env.NODE_ENV` on Webpack — so it is tree-shaken out of production builds. Never a runtime guard such as `isDevMode()`
 - **No app code changes** unless the user explicitly requests it — fix tests, not application code, by default

@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: twd-flow-test
 description: The twd skill writes a flow test that follows the current API rules
-expected_outcome: One file, one top-level describe, mocks before visit, findBy queries, Chai asserts, responseHeaders never headers
+expected_outcome: One file, mocks before visit, findBy queries, Chai asserts, responseHeaders never headers, type-checked and linted
 tags: [twd]
 runs: 1
 context:
@@ -16,8 +16,8 @@ execution:
   prompt: |
     Write TWD tests for the todo page: loading the list, the empty state, a
     failed load, and adding a todo. Put them in src/twd-tests/todos.twd.test.ts.
-    The dev server is not running, so stop after writing and type-checking the
-    tests; do not try to run them.
+    The dev server is not running, so stop after writing, type-checking and
+    linting the tests; do not try to run them.
 graders:
   - name: skill-fired
     type: tool_used
@@ -26,12 +26,6 @@ graders:
   - name: test-file-written
     type: file_exists
     path: src/twd-tests/todos.twd.test.ts
-  - name: one-top-level-describe
-    type: regex
-    pattern: '^describe\('
-    flags: m
-    match: "count:1"
-    target: { source: file, path: src/twd-tests/todos.twd.test.ts }
   - name: runner-imports
     type: regex
     pattern: 'from\s+["'']twd-js/runner["'']'
@@ -63,13 +57,19 @@ graders:
     type: tool_used
     tool: Bash
     input_match: 'tsc'
+  - name: lint-attempted
+    type: tool_used
+    tool: Bash
+    input_match: 'twd-lint'
   - name: flow-shape
     type: llm
     focus: { source: file, path: src/twd-tests/todos.twd.test.ts }
     criteria: |
       PASS if every test registers its twd.mockRequest calls before twd.visit,
-      awaits every twd, userEvent and findBy call, resets mocks in beforeEach,
+      awaits every async call (twd.visit, twd.mockRequest, twd.waitForRequest,
+      userEvent.*, screenDom.findBy*/findAllBy*), resets mocks in beforeEach,
       and covers the four flows asked for (list, empty, failed load, add) in
       roughly 3 to 6 it() blocks rather than one it() per element.
-      FAIL if any mock is registered after visit, any async call is missing
-      await, or the tests are split per element.
+      twd.should, twd.clear*, getBy* and queryBy* are synchronous and take no
+      await. FAIL if any mock is registered after visit, any of the async calls
+      above is missing await, or the tests are split per element.
