@@ -65,13 +65,15 @@ Read these files to pre-fill answers (read all in parallel):
 
    These libraries cache fetched data at the module level. Because `twd.visit(...)` is an SPA navigation (no page reload), the cache survives across tests and the **second** test against a fetching page will short-circuit on cached data instead of calling `fetch` — meaning TWD mocks never match and tests fail with misleading "rule not executed" errors. Step 2 Batch 2 asks the user how to reset whichever cache is in use.
 
-8. **Check if `.claude/twd-patterns.md` already exists** — offer to update vs overwrite. When updating, replace an old `### Relay Commands` section with Runner Commands and add any missing Project Configuration lines (App URL, Dev command, Default branch, Closing run).
+8. **Check if `.claude/twd-patterns.md` already exists** — offer to update vs overwrite. When updating, replace an old `### Relay Commands` section with Runner Commands and add any missing Project Configuration lines (App URL, Dev command, Default branch, Type-check command, Closing run).
 
 9. **Dev command** — scan `package.json` scripts for a companion service the app needs before it renders: a `serve`, `serve:dev`, `mock*` or `api*` script, or anything invoking `json-server`. If one exists and a script starts both (typically `serve:dev`), the dev command is `npm run serve:dev`; otherwise `npm run dev`.
 
 10. **Default branch** — `git symbolic-ref --short refs/remotes/origin/HEAD`, strip `origin/`. Fall back to `main` when there is no remote.
 
 11. **Runner state** — is `twd-cli` in `devDependencies`, does `twd.config.json` exist (read it if so), and does `package.json` already have a `test:ci` script?
+
+12. **Type-check command** — only when the project has a `tsconfig*.json`. A `typecheck` or `type-check` script in `package.json` → `npm run <it>`. Otherwise `npx vue-tsc --noEmit -p tsconfig.app.json` for Vue, `npx tsc --noEmit -p tsconfig.app.json` when that file exists, else `npx tsc --noEmit`. The twd agent runs it on the tests it writes before the first browser run. No TypeScript → `none`.
 
 ## Step 2: Ask Questions
 
@@ -90,6 +92,7 @@ Present auto-detected values as a summary first, then ask questions in two batch
 > - Dev server port: `5173`
 > - Entry point: `src/main.tsx`
 > - Dev command: `npm run serve:dev`
+> - Type-check command: `npx tsc --noEmit -p tsconfig.app.json`
 > - App URL: `http://localhost:5173`
 > - Public folder: `public/`
 > - API services: `src/services/`
@@ -143,6 +146,7 @@ Create the `.claude/` directory if it doesn't exist, then write `.claude/twd-pat
 - **Default branch**: DEFAULT_BRANCH
 - **Entry point**: ENTRY_FILE
 - **Public folder**: PUBLIC_DIR
+- **Type-check command**: TYPECHECK_COMMAND
 - **Closing run**: full suite
 
 ### Runner Commands
@@ -201,18 +205,6 @@ afterEach(() => {
 });
 ```
 
-Substitute `QUERY_CACHE_RESET` with the right line based on the detected library:
-
-| Library | Import + reset line |
-|---|---|
-| TanStack Query (any framework) | `import { queryClient } from "USER_PATH";` + `queryClient.clear();` |
-| React Query v3 | same as TanStack Query |
-| SWR (global cache) | `import { mutate } from "swr";` + `mutate(() => true, undefined, { revalidate: false });` |
-| SWR (`<SWRConfig provider={...}>`) | Export the provider Map as a singleton at `USER_PATH` and call `.clear()` on it |
-| Apollo Client | `import { apolloClient } from "USER_PATH";` + `await apolloClient.clearStore();` (the `beforeEach` becomes `async`) |
-| RTK Query | `import { store } from "USER_PATH";` + `store.dispatch(api.util.resetApiState());` |
-| urql | Use `cache.invalidate("Query")` via `@urql/exchange-graphcache` if installed; otherwise document the limitation (urql has no cross-version reset primitive) |
-
 ## Server-State Cache
 
 This project uses **SERVER_STATE_LIB**. Because `twd.visit(...)` is an SPA navigation (no page reload), the cache survives between tests. Tests **must** clear it in `beforeEach`, otherwise loaders/queries will return stale cached data and your TWD mocks will never match — failures show up as "rule was not executed" even though the mock is registered correctly.
@@ -251,7 +243,7 @@ AUTH_DESCRIPTION
 | MODULE_NAME | `import { hook } from 'package'` | `Sinon.stub(moduleObj, 'hook').returns(...)` |
 | (to be filled by developer) | | |
 
-See the test-writing reference for the default-export object pattern required for ESM stubbing.
+See the twd skill's `test-api.md` ("Module Stubbing with Sinon") for the default-export object pattern required for ESM stubbing.
 
 ## Portals and Dialogs
 
@@ -266,7 +258,7 @@ const modal = screenDomGlobal.getByRole("dialog");
 ### Template rules:
 - If base path is `/`, simplify visit paths to just `await twd.visit("/page")`
 - `APP_URL` is `http://localhost:PORT` plus `BASE_PATH` when it is not `/` (e.g. `http://localhost:5173/admin/`)
-- `DEV_COMMAND` and `DEFAULT_BRANCH` come from Step 1 items 9 and 10
+- `DEV_COMMAND`, `DEFAULT_BRANCH` and `TYPECHECK_COMMAND` come from Step 1 items 9, 10 and 12
 - `Closing run: full suite` is always written; the user changes it to `CI` to let CI run the full suite instead
 - Omit the "Auth Middleware" section entirely if no auth
 - Omit the "Third-Party Modules" section entirely if no external modules
@@ -275,7 +267,7 @@ const modal = screenDomGlobal.getByRole("dialog");
 - Omit the `STORE_RESET` comment in beforeEach if no client state library detected
 - Omit the `QUERY_CACHE_RESET` comment in beforeEach if no server-state cache detected
 - Omit the "Server-State Cache" section if no server-state cache detected
-- Replace the placeholder `// QUERY_CACHE_RESET` comment with the actual import + reset line when the user provided a path or accepted scaffolding (don't leave it as a comment in that case); keep it as a `// QUERY_CACHE_RESET — TODO ...` comment if the user chose "Skip for now"
+- Substitute `QUERY_CACHE_RESET` using the reset table in `references/server-state-cache.md` (read it only when a server-state cache was detected). Replace the placeholder `// QUERY_CACHE_RESET` comment with the actual import + reset line when the user provided a path or accepted scaffolding (don't leave it as a comment in that case); keep it as a `// QUERY_CACHE_RESET — TODO ...` comment if the user chose "Skip for now"
 - Omit the `AUTH_SETUP` comment in beforeEach if no auth middleware
 - Omit the `THIRD_PARTY_STUBS` comment in beforeEach if no third-party modules
 - Omit `Sinon.restore()` in beforeEach if no third-party modules need stubbing — Sinon is ONLY needed when the user has external modules to stub
@@ -300,66 +292,7 @@ Using Step 1 item 11 and the entry-file and Vite-config checks, list which of th
 
    #### Branch B — non-Vite project (`isVite = false`)
 
-   Insert a dev-only block BEFORE the app mount code (before `createRoot`, `bootstrapApplication`). The guard must be a value the bundler folds to a constant at build time, or the test files and twd-js ship in production as dead lazy chunks.
-
-   **Angular** — guard on a `TWD_ENABLED` constant from `angular.json`'s `define`. **Never `isDevMode()`**: it is a runtime function call, so esbuild keeps the branch and every `await import()` in it (about 580 K of dead chunks, React included, in a typical app):
-
-   ```typescript
-   // src/main.ts — Angular path
-   // Replaced at build time by the `define` option in angular.json.
-   // Declared as possibly undefined so a missing `define` cannot throw at module scope.
-   declare const TWD_ENABLED: boolean | undefined;
-
-   if (typeof TWD_ENABLED !== 'undefined' && TWD_ENABLED) {
-     const { initTWD } = await import('twd-js/bundled');
-     const tests = {
-       './twd-tests/example.twd.test.ts': () => import('./twd-tests/example.twd.test'),
-     };
-     initTWD(tests, { open: true, position: 'left' });
-   } else if (typeof TWD_ENABLED === 'undefined') {
-     console.warn('[TWD] TWD_ENABLED is not defined — add the `define` option to angular.json.');
-   }
-   ```
-
-   And in `angular.json`, under `projects.<name>.architect.build` — off by default, on for `development` only:
-
-   ```jsonc
-   "options": {
-     "define": { "TWD_ENABLED": "false" }
-   },
-   "configurations": {
-     "development": {
-       "define": { "TWD_ENABLED": "true" }
-     }
-   }
-   ```
-
-   Keep the `typeof` check. A bare `if (TWD_ENABLED)` throws at module scope when a build configuration lacks the `define`, before `bootstrapApplication`, and the page renders nothing. Angular has no `import.meta.glob`, so list each test file in `tests` by hand, and add new files there as they are written.
-
-   **Webpack / CRA** — guard on `process.env.NODE_ENV` and discover tests with `require.context`:
-
-   ```javascript
-   // src/index.{js,tsx} — Webpack path
-   if (process.env.NODE_ENV === 'development') {
-     const context = require.context('./', true, /\.twd\.test\.ts$/);
-     const tests = {};
-     context.keys().forEach((key) => {
-       tests[key] = async () => Promise.resolve(context(key));
-     });
-
-     const { initTWD } = await import('twd-js/bundled');
-     initTWD(tests, {
-       open: true,
-       position: 'left',
-       serviceWorker: true,
-       serviceWorkerUrl: '/mock-sw.js',
-     });
-   }
-   ```
-
-   If the project also runs Jest, keep it off the TWD files (`--testPathIgnorePatterns=src/twd-tests`).
-
-   > **Non-Vite, non-root base path:** set `serviceWorkerUrl` to `'/BASE/mock-sw.js'`. The Vite plugin handles base-prefixing itself — do NOT pre-prefix `serviceWorkerUrl` in the plugin options.
+   Read `references/non-vite.md` and follow it. It has the Angular block (guarded by a `TWD_ENABLED` define in `angular.json`) and the Webpack/CRA block (guarded by `process.env.NODE_ENV`, tests found with `require.context`). The one rule to hold even without it: the guard must fold to a constant at build time — never `isDevMode()` — or twd-js and every test file ship in the production build.
 
 4. Add the Vite plugin — **Vite projects only.** Skip for non-Vite projects.
 
@@ -405,55 +338,7 @@ Using Step 1 item 11 and the entry-file and Vite-config checks, list which of th
 
 5. **Scaffold server-state cache singleton** — only if a server-state cache was detected in Step 1 #7 AND the user picked "Generate the pattern for me" in Step 2 Batch 2 #5. Skip otherwise.
 
-   Two changes are needed:
-   - **Create the singleton file** at `src/<lib>-client.ts` (or `.js` if the project is JS-only).
-   - **Refactor the entry file** (or wherever the client is currently constructed) to import the singleton instead of `new`ing it inline.
-
-   Show the diff to the user via `Edit` and confirm before applying. Templates per library:
-
-   **TanStack Query (React; Vue/Solid/Angular are analogous — swap the import package):**
-
-   ```typescript
-   // src/query-client.ts
-   import { QueryClient } from '@tanstack/react-query';
-
-   export const queryClient = new QueryClient({
-     defaultOptions: { queries: { staleTime: 1000 * 30 } },
-   });
-   ```
-
-   Entry-file refactor: replace `const queryClient = new QueryClient(...)` with `import { queryClient } from './query-client'`. The `<QueryClientProvider client={queryClient}>` stays where it is.
-
-   **Apollo Client:**
-
-   ```typescript
-   // src/apollo-client.ts
-   import { ApolloClient, InMemoryCache } from '@apollo/client';
-
-   export const apolloClient = new ApolloClient({
-     uri: '/graphql',
-     cache: new InMemoryCache(),
-   });
-   ```
-
-   Entry-file refactor: replace inline `new ApolloClient(...)` with `import { apolloClient } from './apollo-client'`.
-
-   **SWR (global cache):** no singleton extraction needed — SWR's cache is global by default and reset via `mutate(() => true, undefined, { revalidate: false })`. Skip the scaffold step but still write the heads-up section.
-
-   **SWR (`<SWRConfig provider={...}>`):**
-
-   ```typescript
-   // src/swr-cache.ts
-   export const swrCache = new Map();
-   ```
-
-   Then in the entry file, pass `provider={() => swrCache}` to `<SWRConfig>` and reset via `swrCache.clear()`.
-
-   **RTK Query:** no separate singleton needed — the store is already a singleton. Just confirm the store's export path and reset via `store.dispatch(api.util.resetApiState())`.
-
-   **urql:** if `@urql/exchange-graphcache` is in use, document the `cache.invalidate("Query")` pattern in `twd-patterns.md`. If not, surface the limitation to the user and offer to skip the QUERY_CACHE_RESET line — there's no general-purpose urql cache reset.
-
-   After scaffolding, update `USER_PATH` in the generated `twd-patterns.md` to point at the new singleton file (e.g. `./query-client`).
+   Follow "Scaffolding the singleton" in `references/server-state-cache.md`: it has the singleton file and the entry-file refactor for each library. Show the diff and confirm before applying. Then point `USER_PATH` in `twd-patterns.md` at the new file.
 
 6. **Write `twd.config.json`** at the project root. Two keys, and only two:
 

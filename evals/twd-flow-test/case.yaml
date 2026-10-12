@@ -1,0 +1,75 @@
+schema_version: "1.1"
+name: twd-flow-test
+description: The twd skill writes a flow test that follows the current API rules
+expected_outcome: One file, one top-level describe, mocks before visit, findBy queries, Chai asserts, responseHeaders never headers
+tags: [twd]
+runs: 1
+context:
+  scaffold_script: scaffold.sh
+execution:
+  max_turns: 40
+  timeout_seconds: 900
+  allowed_tools: [Read, Glob, Grep, Skill, TodoWrite, Agent]
+  append_system_prompt: >-
+    No user is available to answer. Where you would ask a question, take the
+    detected value or the recommended option and continue.
+  prompt: |
+    Write TWD tests for the todo page: loading the list, the empty state, a
+    failed load, and adding a todo. Put them in src/twd-tests/todos.twd.test.ts.
+    The dev server is not running, so stop after writing and type-checking the
+    tests; do not try to run them.
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?twd"'
+  - name: test-file-written
+    type: file_exists
+    path: src/twd-tests/todos.twd.test.ts
+  - name: one-top-level-describe
+    type: regex
+    pattern: '^describe\('
+    flags: m
+    match: "count:1"
+    target: { source: file, path: src/twd-tests/todos.twd.test.ts }
+  - name: runner-imports
+    type: regex
+    pattern: 'from\s+["'']twd-js/runner["'']'
+    target: { source: file, path: src/twd-tests/todos.twd.test.ts }
+  - name: findby-queries
+    type: regex
+    pattern: 'screenDom\.find(All)?By'
+    target: { source: file, path: src/twd-tests/todos.twd.test.ts }
+  - name: no-jest-matchers
+    type: regex
+    pattern: '\.(toBe|toEqual|toHaveLength|toBeTruthy|toBeNull)\('
+    match: not_contains
+    target: { source: file, path: src/twd-tests/todos.twd.test.ts }
+  - name: no-headers-key
+    type: regex
+    pattern: '\b(headers|body)\s*:'
+    match: not_contains
+    target: { source: file, path: src/twd-tests/todos.twd.test.ts }
+  - name: payload-asserted-on-rule-request
+    type: regex
+    pattern: 'rule\w*\.request\)\.to\.deep\.equal|\.request\)\.to\.(deep\.)?(equal|include)'
+    target: { source: file, path: src/twd-tests/todos.twd.test.ts }
+  - name: no-request-body
+    type: regex
+    pattern: '\.request\.body'
+    match: not_contains
+    target: { source: file, path: src/twd-tests/todos.twd.test.ts }
+  - name: type-check-attempted
+    type: tool_used
+    tool: Bash
+    input_match: 'tsc'
+  - name: flow-shape
+    type: llm
+    focus: { source: file, path: src/twd-tests/todos.twd.test.ts }
+    criteria: |
+      PASS if every test registers its twd.mockRequest calls before twd.visit,
+      awaits every twd, userEvent and findBy call, resets mocks in beforeEach,
+      and covers the four flows asked for (list, empty, failed load, add) in
+      roughly 3 to 6 it() blocks rather than one it() per element.
+      FAIL if any mock is registered after visit, any async call is missing
+      await, or the tests are split per element.

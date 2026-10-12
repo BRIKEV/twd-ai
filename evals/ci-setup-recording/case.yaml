@@ -1,0 +1,64 @@
+schema_version: "1.1"
+name: ci-setup-recording
+description: /twd:ci-setup writes the test and recording workflows with the same runtime environment
+expected_outcome: twd-tests.yml on the run action, a separate label-triggered twd-record.yml pinned to v1.10.0, and both starting the mock API and passing VITE_API_URL
+tags: [ci-setup]
+runs: 1
+context:
+  scaffold_script: scaffold.sh
+execution:
+  max_turns: 60
+  timeout_seconds: 900
+  allowed_tools: [Read, Glob, Grep, Skill, TodoWrite, AskUserQuestion]
+  append_system_prompt: >-
+    No user is available to answer. The answers are: no coverage, the GitHub
+    Action, yes to the PR recording workflow, and placeholders for environment
+    variables. Approve the edits the skill proposes. Package installs are not
+    possible here: skip them and say so in the summary.
+  prompt: /twd:ci-setup
+graders:
+  - name: test-workflow-uses-action
+    type: regex
+    pattern: 'BRIKEV/twd-cli/\.github/actions/run@'
+    target: { source: file, path: .github/workflows/twd-tests.yml }
+  - name: test-workflow-not-recording
+    type: regex
+    pattern: '--record|actions/record@'
+    match: not_contains
+    target: { source: file, path: .github/workflows/twd-tests.yml }
+  - name: record-workflow-pinned
+    type: regex
+    pattern: 'BRIKEV/twd-cli/\.github/actions/record@v1\.10\.0'
+    target: { source: file, path: .github/workflows/twd-record.yml }
+  - name: record-workflow-full-history
+    type: regex
+    pattern: 'fetch-depth:\s*0'
+    target: { source: file, path: .github/workflows/twd-record.yml }
+  - name: record-workflow-on-label
+    type: regex
+    pattern: 'types:\s*\[\s*labeled\s*\]'
+    target: { source: file, path: .github/workflows/twd-record.yml }
+  - name: tests-env-var
+    type: regex
+    pattern: 'VITE_API_URL:'
+    target: { source: file, path: .github/workflows/twd-tests.yml }
+  - name: record-env-var
+    type: regex
+    pattern: 'VITE_API_URL:'
+    target: { source: file, path: .github/workflows/twd-record.yml }
+  - name: tests-start-mock-api
+    type: regex
+    pattern: 'npm run serve\b(?!:)'
+    target: { source: file, path: .github/workflows/twd-tests.yml }
+  - name: record-start-mock-api
+    type: regex
+    pattern: 'npm run serve\b(?!:)'
+    target: { source: file, path: .github/workflows/twd-record.yml }
+  - name: placeholders-explained
+    type: llm
+    focus: { source: file, path: .github/workflows/twd-record.yml }
+    criteria: |
+      PASS if VITE_API_URL is set to a literal placeholder value (not a
+      ${{ secrets.* }} reference) and a comment near it explains the value is
+      a placeholder because the tests mock the network.
+      FAIL if it reads a secret or has no explaining comment.
