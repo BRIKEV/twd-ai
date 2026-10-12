@@ -360,25 +360,7 @@ Using Step 1 item 11 and the entry-file and Vite-config checks, list which of th
 
 7. **Add the `test:ci` script** to `package.json`: `"test:ci": "npx twd-cli run"`. If a different `test:ci` already exists, show it and ask before replacing it.
 
-8. **Lint TWD tests**, as Step 1 item 13 decided. Install `twd-lint` with the same pinning as `twd-js` — `--save-exact` if `twd-js` is pinned to an exact version, a caret otherwise.
-
-   - **ESLint plugin:** `npm install --save-dev twd-lint`, then add one import and one entry at the end of the exported config array. `recommended` applies only to `**/*.twd.test.{ts,tsx,js,jsx}` and brings its own TypeScript parser, so it touches no other file and needs no parser setup:
-
-     ```js
-     import twd from 'twd-lint';
-
-     export default [
-       // ...existing config, unchanged
-       twd.configs.recommended,
-     ];
-     ```
-
-     If the array is wrapped (`defineConfig([...])`, `tseslint.config(...)`), add the entry as the last argument inside it.
-   - **Command:** `npm install --save-dev twd-lint` and a `"lint:twd": "twd-lint"` script — `lint:twd`, so it never clashes with a `lint` script.
-
-   Either way the twd agent runs `npx twd-lint` on the files it writes; this sub-step pins the version and puts it in front of the people and CI too.
-
-   With Tailwind CSS 4 in the project, check `package-lock.json` after any install: npm 11.6 can drop the `@emnapi/core` and `@emnapi/runtime` entries under `@tailwindcss/oxide-wasm32-wasi`, and `npm ci` then fails in CI with "Missing: @emnapi/core … from lock file". Restore those entries from the previous lockfile if they went missing.
+8. **Lint TWD tests**, as Step 1 item 13 decided: read `references/twd-lint.md` — the ESLint plugin entry or the `lint:twd` script, and pinning. Skip it if the user declines.
 
 9. **Ignore `.twd/`.** Every `twd-cli run` writes its report folder, `.twd/report/`, and rewrites it on the next run, so it must never be committed. Read `.gitignore` and append this line unless `.twd` or `.twd/` is already listed:
 

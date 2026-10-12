@@ -21,7 +21,7 @@ These rules override everything else. If any rule conflicts with instructions be
 
 1. **Use `--test "name"` to isolate failing tests.** Never re-run the full suite to verify a single fix. `npx twd-cli run --test "failing test name"`, repeatable. Matching is a case-insensitive substring of the full describe-path (`"Describe > nested > test name"`) — a `describe` name runs every test under it.
 2. **Mock BEFORE visit.** Always set up `twd.mockRequest()` before `twd.visit()`.
-3. **Await every async TWD call** — `twd.visit()`, `twd.get()`, `twd.mockRequest()`, `twd.waitForRequest()`, `twd.waitFor()`, `userEvent.*`, `screenDom.findBy*`.
+3. **Await every async TWD call** — the list is in `references/test-writing.md`.
 4. **Runner from `twd-js/runner`, `expect` from `twd-js`.** `expect` is **Chai-style**: `.to.equal()`, `.to.have.length()`, `.to.deep.equal()`, `.to.be.true`.
 5. **`mockRequest` takes an alias and a config object:** `await twd.mockRequest("alias", { method, url, response, status?, responseHeaders?, delay?, urlRegex? })`. The body goes in `response`, which accepts any value (objects, arrays, strings, `null`). `url` is boundary-aware string matching — prefer string URLs, `urlRegex: true` only as a last resort.
 6. **`rule.request` is the request body.** `const rule = await twd.waitForRequest("alias")`, then `expect(rule.request).to.deep.equal({ ... })`.
