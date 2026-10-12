@@ -2,7 +2,7 @@
 name: setup
 description: Configures TWD for a project — detects settings, generates .claude/twd-patterns.md, installs twd-js and twd-cli, writes twd.config.json, and wires up the twd() Vite plugin (or the manual initTWD entry-file approach for non-Vite projects)
 disable-model-invocation: true
-allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(npm install *), Bash(npx twd-js init *), Bash(npx twd-cli run), Bash(curl -s *), Bash(git symbolic-ref *), Bash(git -C * symbolic-ref *), AskUserQuestion]
+allowed-tools: [Read, Write, Edit, Glob, Grep, Bash(npm install *), Bash(npx twd-js init *), Bash(npx twd-cli run), Bash(npx twd-lint *), Bash(npm run lint:twd), Bash(curl -s *), Bash(git symbolic-ref *), Bash(git -C * symbolic-ref *), AskUserQuestion]
 ---
 
 # TWD Project Setup
@@ -75,6 +75,10 @@ Read these files to pre-fill answers (read all in parallel):
 
 12. **Type-check command** — only when the project has a `tsconfig*.json`. A `typecheck` or `type-check` script in `package.json` → `npm run <it>`. Otherwise `npx vue-tsc --noEmit -p tsconfig.app.json` for Vue, `npx tsc --noEmit -p tsconfig.app.json` when that file exists, else `npx tsc --noEmit`. The twd agent runs it on the tests it writes before the first browser run. No TypeScript → `none`.
 
+13. **Test lint** — how to wire `twd-lint`, which reports TWD mistakes in seconds instead of in a browser run (missing `await`, runner imports from Jest/Vitest, `rule.request.body`, `it.only`). Skip this item if `twd-lint` is already in `devDependencies`.
+    - **ESLint plugin** — the project has an ESLint flat config (`eslint.config.{js,mjs,cjs,ts,mts,cts}`) and `eslint` 9 or later in `package.json`. Lint then runs in the editor and in the project's existing `eslint` step.
+    - **Command** — anything else: no ESLint, a legacy `.eslintrc*`, Biome or oxlint. The `twd-lint` command needs no ESLint and no config.
+
 ## Step 2: Ask Questions
 
 **IMPORTANT: Use the `AskUserQuestion` tool for ALL questions.** This provides an interactive UI experience. Never dump questions as a plain numbered list in text output.
@@ -93,6 +97,7 @@ Present auto-detected values as a summary first, then ask questions in two batch
 > - Entry point: `src/main.tsx`
 > - Dev command: `npm run serve:dev`
 > - Type-check command: `npx tsc --noEmit -p tsconfig.app.json`
+> - Test lint: twd-lint ESLint plugin (`eslint.config.js`)
 > - App URL: `http://localhost:5173`
 > - Public folder: `public/`
 > - API services: `src/services/`
@@ -147,6 +152,7 @@ Create the `.claude/` directory if it doesn't exist, then write `.claude/twd-pat
 - **Entry point**: ENTRY_FILE
 - **Public folder**: PUBLIC_DIR
 - **Type-check command**: TYPECHECK_COMMAND
+- **Test lint**: LINT_SETUP
 - **Closing run**: full suite
 
 ### Runner Commands
@@ -166,6 +172,9 @@ npx twd-cli run --changed-since origin/DEFAULT_BRANCH
 
 # Record a run to video (one clip per matched test, needs ffmpeg)
 npx twd-cli run --record --test "should render the list"
+
+# Lint TWD tests, applying the safe fixes (no dev server needed)
+npx twd-lint --fix
 ```
 
 Every run writes `.twd/report/`: `run.json` (the result), `summary.md` and `index.html`. The folder is replaced on each run.
@@ -259,6 +268,7 @@ const modal = screenDomGlobal.getByRole("dialog");
 - If base path is `/`, simplify visit paths to just `await twd.visit("/page")`
 - `APP_URL` is `http://localhost:PORT` plus `BASE_PATH` when it is not `/` (e.g. `http://localhost:5173/admin/`)
 - `DEV_COMMAND`, `DEFAULT_BRANCH` and `TYPECHECK_COMMAND` come from Step 1 items 9, 10 and 12
+- `LINT_SETUP` is `ESLint plugin (eslint.config.js)` or `npm run lint:twd`, whichever Step 1 item 13 found or sub-step 8 added; `npx twd-lint` if the user declined it
 - `Closing run: full suite` is always written; the user changes it to `CI` to let CI run the full suite instead
 - Omit the "Auth Middleware" section entirely if no auth
 - Omit the "Third-Party Modules" section entirely if no external modules
@@ -350,7 +360,27 @@ Using Step 1 item 11 and the entry-file and Vite-config checks, list which of th
 
 7. **Add the `test:ci` script** to `package.json`: `"test:ci": "npx twd-cli run"`. If a different `test:ci` already exists, show it and ask before replacing it.
 
-8. **Ignore `.twd/`.** Every `twd-cli run` writes its report folder, `.twd/report/`, and rewrites it on the next run, so it must never be committed. Read `.gitignore` and append this line unless `.twd` or `.twd/` is already listed:
+8. **Lint TWD tests**, as Step 1 item 13 decided. Install `twd-lint` with the same pinning as `twd-js` — `--save-exact` if `twd-js` is pinned to an exact version, a caret otherwise.
+
+   - **ESLint plugin:** `npm install --save-dev twd-lint`, then add one import and one entry at the end of the exported config array. `recommended` applies only to `**/*.twd.test.{ts,tsx,js,jsx}` and brings its own TypeScript parser, so it touches no other file and needs no parser setup:
+
+     ```js
+     import twd from 'twd-lint';
+
+     export default [
+       // ...existing config, unchanged
+       twd.configs.recommended,
+     ];
+     ```
+
+     If the array is wrapped (`defineConfig([...])`, `tseslint.config(...)`), add the entry as the last argument inside it.
+   - **Command:** `npm install --save-dev twd-lint` and a `"lint:twd": "twd-lint"` script — `lint:twd`, so it never clashes with a `lint` script.
+
+   Either way the twd agent runs `npx twd-lint` on the files it writes; this sub-step pins the version and puts it in front of the people and CI too.
+
+   With Tailwind CSS 4 in the project, check `package-lock.json` after any install: npm 11.6 can drop the `@emnapi/core` and `@emnapi/runtime` entries under `@tailwindcss/oxide-wasm32-wasi`, and `npm ci` then fails in CI with "Missing: @emnapi/core … from lock file". Restore those entries from the previous lockfile if they went missing.
+
+9. **Ignore `.twd/`.** Every `twd-cli run` writes its report folder, `.twd/report/`, and rewrites it on the next run, so it must never be committed. Read `.gitignore` and append this line unless `.twd` or `.twd/` is already listed:
 
    ```
    .twd/
@@ -358,7 +388,7 @@ Using Step 1 item 11 and the entry-file and Vite-config checks, list which of th
 
    If `.gitignore` does not exist, create it with that single line. If `twd.config.json` sets `report.dir` outside `.twd/`, ignore that folder too.
 
-9. Write a **scaffold-only** first test file at `src/twd-tests/hello.twd.test.ts` (create the `src/twd-tests/` directory if needed). The file must contain **only empty `it` blocks** — this is a setup skill, NOT a test-writing skill. Do NOT invent assertions, selectors, or page content. Do NOT add Sinon unless the user explicitly configured third-party modules that need stubbing. Use the beforeEach/afterEach from the generated `twd-patterns.md`.
+10. Write a **scaffold-only** first test file at `src/twd-tests/hello.twd.test.ts` (create the `src/twd-tests/` directory if needed). The file must contain **only empty `it` blocks** — this is a setup skill, NOT a test-writing skill. Do NOT invent assertions, selectors, or page content. Do NOT add Sinon unless the user explicitly configured third-party modules that need stubbing. Use the beforeEach/afterEach from the generated `twd-patterns.md`.
 
    Example scaffold:
 
@@ -384,7 +414,7 @@ Using Step 1 item 11 and the entry-file and Vite-config checks, list which of th
 
    > **Rules for this scaffold**: Only include `Sinon.restore()` in beforeEach if third-party modules were configured. Only include client store reset if a client state library was configured. Only include the server-state cache reset (e.g. `queryClient.clear()`) if a server-state cache was configured AND the user provided a path or accepted scaffolding (sub-step 5). The `it` blocks must be empty with a comment pointing to the `/twd` skill. If the user specified a different test location, use that instead of `src/twd-tests/`.
 
-10. **Verify the wiring with one run.** Probe the app URL once:
+11. **Verify the wiring.** Lint the scaffold once — `npx twd-lint src/twd-tests` (or the test folder used) exits `0`. Then probe the app URL once:
 
     ```bash
     curl -s --max-time 3 -o /dev/null -w '%{http_code}' APP_URL
@@ -405,6 +435,7 @@ When done, summarize:
 - **Which integration path was used** — Vite plugin (`twd()` in `vite.config.*`, no TWD code in the entry file) or manual (`initTWD(...)` block in the entry file). For Vite projects with a non-root `base`, mention that the plugin auto-prefixes the script src and `serviceWorkerUrl`.
 - **Server-state cache handling** (if applicable) — which library, the import path used in `QUERY_CACHE_RESET`, and whether the singleton was scaffolded or already existed
 - **Runner** — twd-cli installed, `twd.config.json` written or merged (show its contents), `test:ci` added or kept, `.twd/` added to `.gitignore` or already there
+- **Test lint** — the ESLint plugin added to which config, or the `lint:twd` script, or declined
 - What setup steps were completed
 - **Verification run** — its `outcome` from `run.json`, or that the dev server was not running and the user should run `npm run test:ci` once it is
 - Next steps, in this order:

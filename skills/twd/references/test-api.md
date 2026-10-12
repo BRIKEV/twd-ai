@@ -106,7 +106,7 @@ await twd.mockRequest("serverError", {
 });
 
 // Wait for request and inspect body
-// IMPORTANT: rule.request IS the body — NOT rule.request.body
+// rule.request is the parsed request body
 const rule = await twd.waitForRequest("submitForm");
 expect(rule.request).to.deep.equal({ email: "test@example.com" });
 

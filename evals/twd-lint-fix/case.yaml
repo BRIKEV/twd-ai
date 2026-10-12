@@ -1,0 +1,58 @@
+schema_version: "1.1"
+name: twd-lint-fix
+description: The twd skill lints an existing test with planted mistakes and fixes every report
+expected_outcome: twd-lint run on the file; runner imports from twd-js/runner, every async call awaited, no it.only, payload read from rule.request
+tags: [twd, lint]
+runs: 1
+context:
+  scaffold_script: scaffold.sh
+execution:
+  max_turns: 30
+  timeout_seconds: 600
+  allowed_tools: [Read, Glob, Grep, Skill, TodoWrite, Agent]
+  append_system_prompt: >-
+    No user is available to answer. Where you would ask a question, take the
+    detected value or the recommended option and continue.
+  prompt: |
+    src/twd-tests/todos.twd.test.ts was written by hand and something is off
+    with it. Get it into shape for the twd runner. The dev server is not
+    running, so do not try to run the tests.
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?twd"'
+  - name: lint-ran
+    type: tool_used
+    tool: Bash
+    input_match: 'twd-lint'
+  - name: no-vitest-import
+    type: regex
+    pattern: 'from\s+["'']vitest["'']'
+    match: not_contains
+    target: { source: file, path: src/twd-tests/todos.twd.test.ts }
+  - name: runner-imports
+    type: regex
+    pattern: 'from\s+["'']twd-js/runner["'']'
+    target: { source: file, path: src/twd-tests/todos.twd.test.ts }
+  - name: no-focused-test
+    type: regex
+    pattern: '\.only\('
+    match: not_contains
+    target: { source: file, path: src/twd-tests/todos.twd.test.ts }
+  - name: no-request-body
+    type: regex
+    pattern: '\.request\.body'
+    match: not_contains
+    target: { source: file, path: src/twd-tests/todos.twd.test.ts }
+  - name: no-unawaited-calls
+    type: regex
+    pattern: '^\s*(twd\.(mockRequest|visit|waitForRequest)|userEvent\.\w+)\('
+    flags: m
+    match: not_contains
+    target: { source: file, path: src/twd-tests/todos.twd.test.ts }
+  - name: both-tests-kept
+    type: regex
+    pattern: '\bit\('
+    match: "count:2"
+    target: { source: file, path: src/twd-tests/todos.twd.test.ts }

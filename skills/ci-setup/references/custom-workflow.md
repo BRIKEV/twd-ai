@@ -34,6 +34,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Seconds, before any server starts: a broken test fails here, not in the browser.
+      - name: Lint TWD tests
+        run: npm run lint:twd
+
       - name: Install mock service worker
         run: npx twd-js init public --save
 
@@ -84,6 +88,10 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # Seconds, before any server starts: a broken test fails here, not in the browser.
+      - name: Lint TWD tests
+        run: npm run lint:twd
 
       - name: Install mock service worker
         run: npx twd-js init public --save

@@ -20,8 +20,8 @@ This file has the whole flow, including the GitHub Action workflow template. Thr
 Read these files in parallel to understand the current setup:
 
 1. **`package.json`** — detect:
-   - Existing scripts (`dev`, `test:ci`, `dev:ci`, `collect:coverage:*`)
-   - Installed packages (`twd-cli`, `vite-plugin-istanbul`, `nyc`, `vite`)
+   - Existing scripts (`dev`, `test:ci`, `dev:ci`, `lint:twd`, `collect:coverage:*`)
+   - Installed packages (`twd-cli`, `twd-lint`, `vite-plugin-istanbul`, `nyc`, `vite`)
    - Dev server port from scripts if present
 2. **`vite.config.ts`** (or `.js`, `.mjs`) — detect:
    - Whether Vite is in use (required for coverage)
@@ -37,6 +37,9 @@ Read these files in parallel to understand the current setup:
 8. **`package.json` scripts, second pass** — look for a companion service the app needs before it can render:
    a `serve`, `serve:dev`, `mock*` or `api*` script, or anything invoking `json-server`. Note its port, and a
    health URL if one is obvious (used in Step 2.7)
+9. **Glob `**/*.twd.test.{ts,tsx,js,jsx}`** (outside `node_modules`) — are there TWD tests yet (used in Steps 2.6 and 7)
+10. **Test lint** — a `lint:twd` script, or `twd-lint` imported in `eslint.config.*`, and whether a workflow from
+   item 5 already runs `eslint` (used in Step 7)
 
 ## Step 2: Report Findings and Ask About Coverage
 
@@ -93,7 +96,7 @@ The "Custom setup" workflow option (Step 7, Option B) does NOT support `contract
 
 ## Step 2.6: Ask About PR Video Recording
 
-Only ask when **both** are true: existing TWD tests were found (Step 1, item 5)
+Only ask when **both** are true: existing TWD tests were found (Step 1, item 9)
 and a GitHub Actions workflow is being generated. Otherwise skip this step
 silently — there is nothing to record, or nowhere to run it.
 
@@ -318,6 +321,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Seconds, before any server starts: a broken test fails here, not in the browser.
+      - name: Lint TWD tests
+        run: npm run lint:twd
+
       - name: Install mock service worker
         run: npx twd-js init public --save
 
@@ -329,6 +336,8 @@ jobs:
       - name: Run TWD tests
         uses: BRIKEV/twd-cli/.github/actions/run@main
 ```
+
+The lint step comes from Step 1 item 10: `npm run lint:twd` when that script exists, otherwise `npx twd-lint`. Leave it out when `twd-lint` is an ESLint plugin in the project's config and a workflow already runs `eslint` — that step covers the TWD tests. Leave it out as well when Step 1 item 9 found no TWD tests, since `twd-lint` exits `2` on an empty folder, and say so in the summary.
 
 If Step 2.7 turned up environment variables or a companion service, the dev
 server step grows an `env:` block, and the service starts before it:
@@ -401,6 +410,7 @@ Read `references/custom-workflow.md` and use its template:
 Add its job summary and report upload steps.
 
 **Customize both options:**
+- Keep or drop the "Lint TWD tests" step, and pick its command, as described under Option A
 - Set the correct port in the `wait-on` URL
 - If base path is not `/`, append it to the `wait-on` URL
 - Use `dev:ci` for the server command if coverage is enabled, `dev` otherwise
@@ -464,6 +474,7 @@ When done, summarize:
 - Whether coverage was set up
 - Whether contract validation was set up (and which specs)
 - Whether a PR recording workflow was created
+- The "Lint TWD tests" step and its command, or why it was left out. Without any twd-lint wiring, suggest `/twd:setup` to add it
 - Which environment variables were wired into the workflows, and whether they are placeholders or secrets
 - Next steps:
   - "Push to GitHub to trigger the workflow"
