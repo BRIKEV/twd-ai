@@ -25,8 +25,24 @@ import { describe, it, beforeEach, afterEach } from "twd-js/runner";
 
 1. `await screenDom.findBy*(...)` — waits for the element to appear. **Every query.** `findAllBy*` for lists. It checks the DOM straight away and resolves on that first check when the element is already there, so it costs nothing over `getBy*`
 2. `screenDom.queryBy*(...)` — returns `null`. **Only** to assert that something is absent
-3. `screenDom.getBy*(...)` — **only** inside a `twd.waitFor(() => ...)` callback, which needs a query that throws. Never as a step in the test: "it rendered already" is true until a re-render after a click or a fetch makes it false
+3. `screenDom.getBy*(...)` — **only** inside a `twd.waitFor(() => ...)` callback, which needs a query that throws. As a step in the test it fails whenever the element is not there yet
 4. `await twd.get(selector)` / `await twd.getAll(selector)` — CSS selector, **last resort**, when no Testing Library query can reach the element
+
+**Find into a variable, then act and assert on it** — not `twd.should(await screenDom.findBy...(...), ...)` on one line. The variable stays valid across actions while the element stays mounted, because the framework updates the same DOM node:
+
+```typescript
+const counter = await screenDom.findByRole("button", { name: "Count is 0" });
+await userEvent.click(counter);
+twd.should(counter, "have.text", "Count is 1");
+```
+
+`twd.should` checks once and does not retry. Query again, with the expected state in the query, when the change arrives later than the action (after a fetch or a timer) or the element is replaced (conditional render, a changed `key`, a route change):
+
+```typescript
+await userEvent.click(save);
+const saved = await screenDom.findByText("Saved");
+twd.should(saved, "be.visible");
+```
 
 **Query type — by what the user perceives:**
 
@@ -107,8 +123,10 @@ describe("Feature Page", () => {
     await twd.visit("/items");
     await twd.waitForRequest("getItems");
 
-    twd.should(await screenDom.findByRole("heading", { name: "Items" }), "be.visible");
-    expect(await screenDom.findAllByRole("listitem")).to.have.length(2);
+    const heading = await screenDom.findByRole("heading", { name: "Items" });
+    twd.should(heading, "be.visible");
+    const items = await screenDom.findAllByRole("listitem");
+    expect(items).to.have.length(2);
   });
 
   it("should show empty state", async () => {
@@ -122,7 +140,8 @@ describe("Feature Page", () => {
     await twd.visit("/items");
     await twd.waitForRequest("getItems");
 
-    twd.should(await screenDom.findByText(/no items found/i), "be.visible");
+    const empty = await screenDom.findByText(/no items found/i);
+    twd.should(empty, "be.visible");
   });
 });
 ```

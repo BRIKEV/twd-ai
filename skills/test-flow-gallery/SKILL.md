@@ -250,8 +250,10 @@ describe("Items Page", () => {
     await twd.visit("/items");
     await twd.waitForRequest("getItems");
 
-    twd.should(await screenDom.findByRole("heading", { name: "Items" }), "be.visible");
-    expect(await screenDom.findAllByRole("listitem")).to.have.length(2);
+    const heading = await screenDom.findByRole("heading", { name: "Items" });
+    twd.should(heading, "be.visible");
+    const items = await screenDom.findAllByRole("listitem");
+    expect(items).to.have.length(2);
   });
 });
 ```

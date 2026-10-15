@@ -183,8 +183,10 @@ const multiple = await twd.getAll(".item");
 ```typescript
 const user = userEvent.setup();
 
-await user.click(await screenDom.findByRole("button", { name: "Save" }));
-await user.type(await screenDom.findByLabelText("Email"), "hello@example.com");
+const email = await screenDom.findByLabelText("Email");
+await user.type(email, "hello@example.com");
+const save = await screenDom.findByRole("button", { name: "Save" });
+await user.click(save);
 await user.dblClick(element);
 await user.clear(input);
 await user.selectOptions(select, "option-value");
@@ -202,9 +204,10 @@ await user.click(twdButton.el);
 **Range, date, time and color inputs — `twd.setInputValue`.** userEvent cannot drive a slider or a native picker. `twd.setInputValue` sets the value and dispatches the input event the framework listens for. It is synchronous. Use it ONLY for these input types — text inputs, textareas and checkboxes go through userEvent, which fires the real keystroke and click events:
 
 ```typescript
-twd.setInputValue(await screenDom.findByLabelText("Volume"), "75");     // type="range"
-twd.setInputValue(await screenDom.findByLabelText("Start"), "13:30");   // type="time"
-twd.setInputValue(await screenDom.findByLabelText("Due"), "2026-12-01"); // type="date"
+const volume = await screenDom.findByLabelText("Volume"); // type="range"
+twd.setInputValue(volume, "75");
+const due = await screenDom.findByLabelText("Due");       // type="date"
+twd.setInputValue(due, "2026-12-01");
 ```
 
 ## Assertions
@@ -212,8 +215,9 @@ twd.setInputValue(await screenDom.findByLabelText("Due"), "2026-12-01"); // type
 **Function style (any element):**
 
 ```typescript
-twd.should(await screenDom.findByRole("button"), "be.visible");
-twd.should(await screenDom.findByRole("button"), "have.text", "Submit");
+const submit = await screenDom.findByRole("button", { name: "Submit" });
+twd.should(submit, "be.visible");
+twd.should(submit, "be.enabled");
 twd.should(element, "contain.text", "partial");
 twd.should(element, "have.class", "active");
 twd.should(element, "have.attr", "type", "submit");

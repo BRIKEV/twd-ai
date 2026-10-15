@@ -196,14 +196,16 @@ describe("Add Component", () => {
 
     render(<AppProvider><Add /></AppProvider>, { container: componentHost() });
 
-    twd.should(await screen.findByText("Add Item"), "be.visible");
+    const addButton = await screen.findByText("Add Item");
+    twd.should(addButton, "be.visible");
+    await userEvent.click(addButton);
 
-    await userEvent.click(await screen.findByText("Add Item"));
-    await userEvent.type(await screen.findByPlaceholderText("Enter model"), "Golf");
+    const model = await screen.findByPlaceholderText("Enter model");
+    await userEvent.type(model, "Golf");
+    twd.should(model, "have.value", "Golf");
 
-    twd.should(await screen.findByPlaceholderText("Enter model"), "have.value", "Golf");
-
-    await userEvent.click(await screen.findByText("Save"));
+    const save = await screen.findByText("Save");
+    await userEvent.click(save);
     await twd.waitForRequest("createCar");
   });
 });
