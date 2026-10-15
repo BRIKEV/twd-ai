@@ -21,11 +21,11 @@ import { describe, it, beforeEach, afterEach } from "twd-js/runner";
 
 ### Element Selection Priority
 
-**Query variant — `findBy*` first.** UI in a real app renders asynchronously (after navigation, fetches, state updates), so default to the variant that waits:
+**Query variant — `findBy*` for every lookup.** UI in a real app renders asynchronously (after navigation, fetches, state updates, a click), so every element query waits — not just the first one in a test:
 
-1. `await screenDom.findBy*(...)` — waits for the element to appear. **The default.** `findAllBy*` for lists
-2. `screenDom.getBy*(...)` — synchronous, throws at once. Only when the element is certainly already rendered
-3. `screenDom.queryBy*(...)` — returns `null`. **Only** to assert that something is absent
+1. `await screenDom.findBy*(...)` — waits for the element to appear. **Every query.** `findAllBy*` for lists. It checks the DOM straight away and resolves on that first check when the element is already there, so it costs nothing over `getBy*`
+2. `screenDom.queryBy*(...)` — returns `null`. **Only** to assert that something is absent
+3. `screenDom.getBy*(...)` — **only** inside a `twd.waitFor(() => ...)` callback, which needs a query that throws. Never as a step in the test: "it rendered already" is true until a re-render after a click or a fetch makes it false
 
 **Query type — by what the user perceives:**
 

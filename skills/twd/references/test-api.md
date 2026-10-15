@@ -153,20 +153,20 @@ await screenDom.findByText(/welcome/i);
 // By test ID
 await screenDom.findByTestId("user-card");
 
-// Query variants, in order of preference
-await screenDom.findByRole("button");     // Waits for the element — the default
-await screenDom.findAllByRole("button");  // Waits, returns array — the default for lists
-screenDom.getByRole("button");            // Throws at once — only when already rendered
+// Query variants
+await screenDom.findByRole("button");     // Waits for the element — every lookup
+await screenDom.findAllByRole("button");  // Waits, returns array — every list
 screenDom.queryByRole("button");          // Returns null — only to assert absence
+screenDom.getByRole("button");            // Throws at once — only inside twd.waitFor(() => ...)
 ```
 
-`findBy*` waits up to 3000 ms in TWD.
+`findBy*` waits up to 3000 ms in TWD, and resolves on its first check when the element is already there — use it for every lookup, not just the first in a test.
 
 **For modals/portals use `screenDomGlobal`:**
 
 ```typescript
 import { screenDomGlobal } from "twd-js";
-const modal = screenDomGlobal.getByRole("dialog");
+const modal = await screenDomGlobal.findByRole("dialog");
 ```
 
 **Fallback: CSS selectors via `twd.get()`**
@@ -182,8 +182,8 @@ const multiple = await twd.getAll(".item");
 ```typescript
 const user = userEvent.setup();
 
-await user.click(screenDom.getByRole("button", { name: "Save" }));
-await user.type(screenDom.getByLabelText("Email"), "hello@example.com");
+await user.click(await screenDom.findByRole("button", { name: "Save" }));
+await user.type(await screenDom.findByLabelText("Email"), "hello@example.com");
 await user.dblClick(element);
 await user.clear(input);
 await user.selectOptions(select, "option-value");
@@ -211,8 +211,8 @@ twd.setInputValue(await screenDom.findByLabelText("Due"), "2026-12-01"); // type
 **Function style (any element):**
 
 ```typescript
-twd.should(screenDom.getByRole("button"), "be.visible");
-twd.should(screenDom.getByRole("button"), "have.text", "Submit");
+twd.should(await screenDom.findByRole("button"), "be.visible");
+twd.should(await screenDom.findByRole("button"), "have.text", "Submit");
 twd.should(element, "contain.text", "partial");
 twd.should(element, "have.class", "active");
 twd.should(element, "have.attr", "type", "submit");
