@@ -88,7 +88,7 @@ Skip this step silently.
 
 ### Sensible defaults when "Yes":
 
-- **`baseUrl`** — twd-cli matches it as a plain prefix of each mock's `url`, exactly as the test wrote it. Resolve what the mock URLs really are: read the `url:` of the `mockRequest` calls, and follow a constant (`url: TODOS_URL`) to where it is defined. Take the part before the spec's paths: `/api` for `/api/todos`, `http://localhost:3001/api` for `http://localhost:3001/api/todos` — a path-only prefix never matches an absolute URL. No mocks under any prefix → `"/"`.
+- **`baseUrl`** — twd-cli matches it as a plain prefix of each mock's `url`, exactly as the test wrote it. Resolve what the mock URLs really are: read the `url:` of the `mockRequest` calls, and follow a constant (`url: USERS_URL`) to where it is defined. Take the part before the spec's paths: `/api` for `/api/users`, `http://localhost:4000/api` for `http://localhost:4000/api/users` — a path-only prefix never matches an absolute URL. No mocks under any prefix → `"/"`.
 - **Check it matched.** If the dev server is up, run `npm run test:ci` once and read the contract line: `Mocks validated: 0` with every mock skipped as `No matching path in any spec` means `baseUrl` is wrong, even though the run prints `All mocks match`. Fix it before writing the workflow.
 - **`mode`** — `"error"` (strict by default; user can switch to `"warn"` later).
 - **`strict`** — `true` (rejects unexpected properties).

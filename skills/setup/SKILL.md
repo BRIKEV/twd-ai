@@ -255,7 +255,7 @@ AUTH_DESCRIPTION
 |-----------|---------|-----------|-------|
 | COMPONENT | `package` | `MOCK_NAME` | `src/path/File.tsx` |
 
-The fake receives the wrapped child's props (callbacks like `onScan`, `onSuccess`). See the twd skill's `test-advanced.md`.
+The fake receives the wrapped child's props (callbacks like `onSuccess`, `onChange`). See the twd skill's `test-advanced.md`.
 
 ## Third-Party Modules
 
