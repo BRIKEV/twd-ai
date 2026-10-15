@@ -88,7 +88,8 @@ Skip this step silently.
 
 ### Sensible defaults when "Yes":
 
-- **`baseUrl`** — default to `"/api"` if test files (`*.twd.test.ts` or `*.twd.test.tsx`) reference URLs starting with `/api/`. Grep `*.twd.test.*` for `url:\s*["']/api/` to confirm. Otherwise default to `"/"`.
+- **`baseUrl`** — twd-cli matches it as a plain prefix of each mock's `url`, exactly as the test wrote it. Resolve what the mock URLs really are: read the `url:` of the `mockRequest` calls, and follow a constant (`url: USERS_URL`) to where it is defined. Take the part before the spec's paths: `/api` for `/api/users`, `http://localhost:4000/api` for `http://localhost:4000/api/users` — a path-only prefix never matches an absolute URL. No mocks under any prefix → `"/"`.
+- **Check it matched.** If the dev server is up, run `npm run test:ci` once and read the contract line: `Mocks validated: 0` with every mock skipped as `No matching path in any spec` means `baseUrl` is wrong, even though the run prints `All mocks match`. Fix it before writing the workflow.
 - **`mode`** — `"error"` (strict by default; user can switch to `"warn"` later).
 - **`strict`** — `true` (rejects unexpected properties).
 
@@ -256,6 +257,8 @@ istanbul({
 - Add the plugin AFTER existing plugins (framework, twd)
 - Do NOT remove or modify existing plugins
 - Show the user the changes before applying
+
+**istanbul already configured:** do not add a second one. Check its `exclude` covers the test files — an `include` like `src/**/*` with no `**/*.twd.test.{ts,tsx}` and `**/twd-tests/**` in `exclude` instruments the tests themselves and inflates coverage. Offer to add the two globs; it is the one change to an existing plugin this step makes, and only with the user's yes.
 
 ## Step 6: Add package.json Scripts
 

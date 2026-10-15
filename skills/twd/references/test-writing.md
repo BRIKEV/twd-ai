@@ -21,19 +21,35 @@ import { describe, it, beforeEach, afterEach } from "twd-js/runner";
 
 ### Element Selection Priority
 
-**Query variant — `findBy*` first.** UI in a real app renders asynchronously (after navigation, fetches, state updates), so default to the variant that waits:
+**Query variant, in this priority order.** UI in a real app renders asynchronously (after navigation, fetches, state updates, a click), so every element query waits — not just the first one in a test:
 
-1. `await screenDom.findBy*(...)` — waits for the element to appear. **The default.** `findAllBy*` for lists
-2. `screenDom.getBy*(...)` — synchronous, throws at once. Only when the element is certainly already rendered
-3. `screenDom.queryBy*(...)` — returns `null`. **Only** to assert that something is absent
+1. `await screenDom.findBy*(...)` — waits for the element to appear. **Every query.** `findAllBy*` for lists. It checks the DOM straight away and resolves on that first check when the element is already there, so it costs nothing over `getBy*`
+2. `screenDom.queryBy*(...)` — returns `null`. **Only** to assert that something is absent
+3. `screenDom.getBy*(...)` — **only** inside a `twd.waitFor(() => ...)` callback, which needs a query that throws. As a step in the test it fails whenever the element is not there yet
+4. `await twd.get(selector)` / `await twd.getAll(selector)` — CSS selector, **last resort**, when no Testing Library query can reach the element
+
+**Find into a variable, then act and assert on it** — not `twd.should(await screenDom.findBy...(...), ...)` on one line. The variable stays valid across actions while the element stays mounted, because the framework updates the same DOM node:
+
+```typescript
+const counter = await screenDom.findByRole("button", { name: "Count is 0" });
+await userEvent.click(counter);
+twd.should(counter, "have.text", "Count is 1");
+```
+
+`twd.should` checks once and does not retry. Query again, with the expected state in the query, when the change arrives later than the action (after a fetch or a timer) or the element is replaced (conditional render, a changed `key`, a route change):
+
+```typescript
+await userEvent.click(save);
+const saved = await screenDom.findByText("Saved");
+twd.should(saved, "be.visible");
+```
 
 **Query type — by what the user perceives:**
 
 1. `ByRole("button", { name: "Submit" })` — by ARIA role (preferred)
 2. `ByLabelText("Email")` — form inputs by label
 3. `ByText("Success!")` — by visible text
-4. `ByTestId("user-card")` — by test ID (last resort)
-5. `await twd.get("#id")` / `await twd.get(".class")` — CSS selector fallback, after every Testing Library query
+4. `ByTestId("user-card")` — by test ID (last Testing Library option; after it, only `twd.get`)
 
 For portals/modals: use `screenDomGlobal` instead of `screenDom`.
 
@@ -107,8 +123,10 @@ describe("Feature Page", () => {
     await twd.visit("/items");
     await twd.waitForRequest("getItems");
 
-    twd.should(await screenDom.findByRole("heading", { name: "Items" }), "be.visible");
-    expect(await screenDom.findAllByRole("listitem")).to.have.length(2);
+    const heading = await screenDom.findByRole("heading", { name: "Items" });
+    twd.should(heading, "be.visible");
+    const items = await screenDom.findAllByRole("listitem");
+    expect(items).to.have.length(2);
   });
 
   it("should show empty state", async () => {
@@ -122,7 +140,8 @@ describe("Feature Page", () => {
     await twd.visit("/items");
     await twd.waitForRequest("getItems");
 
-    twd.should(await screenDom.findByText(/no items found/i), "be.visible");
+    const empty = await screenDom.findByText(/no items found/i);
+    twd.should(empty, "be.visible");
   });
 });
 ```

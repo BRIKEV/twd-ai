@@ -153,23 +153,24 @@ await screenDom.findByText(/welcome/i);
 // By test ID
 await screenDom.findByTestId("user-card");
 
-// Query variants, in order of preference
-await screenDom.findByRole("button");     // Waits for the element — the default
-await screenDom.findAllByRole("button");  // Waits, returns array — the default for lists
-screenDom.getByRole("button");            // Throws at once — only when already rendered
-screenDom.queryByRole("button");          // Returns null — only to assert absence
+// Query variants, in priority order
+await screenDom.findByRole("button");     // 1. Waits for the element — every lookup
+await screenDom.findAllByRole("button");  //    Waits, returns array — every list
+screenDom.queryByRole("button");          // 2. Returns null — only to assert absence
+screenDom.getByRole("button");            // 3. Throws at once — only inside twd.waitFor(() => ...)
+await twd.get(".save-btn");               // 4. CSS selector — last resort
 ```
 
-`findBy*` waits up to 3000 ms in TWD.
+`findBy*` waits up to 3000 ms in TWD, and resolves on its first check when the element is already there — use it for every lookup, not just the first in a test.
 
 **For modals/portals use `screenDomGlobal`:**
 
 ```typescript
 import { screenDomGlobal } from "twd-js";
-const modal = screenDomGlobal.getByRole("dialog");
+const modal = await screenDomGlobal.findByRole("dialog");
 ```
 
-**Fallback: CSS selectors via `twd.get()`**
+**Last resort: CSS selectors via `twd.get()`** — only when no Testing Library query reaches the element
 
 ```typescript
 const button = await twd.get("button");
@@ -182,8 +183,10 @@ const multiple = await twd.getAll(".item");
 ```typescript
 const user = userEvent.setup();
 
-await user.click(screenDom.getByRole("button", { name: "Save" }));
-await user.type(screenDom.getByLabelText("Email"), "hello@example.com");
+const email = await screenDom.findByLabelText("Email");
+await user.type(email, "hello@example.com");
+const save = await screenDom.findByRole("button", { name: "Save" });
+await user.click(save);
 await user.dblClick(element);
 await user.clear(input);
 await user.selectOptions(select, "option-value");
@@ -201,9 +204,10 @@ await user.click(twdButton.el);
 **Range, date, time and color inputs — `twd.setInputValue`.** userEvent cannot drive a slider or a native picker. `twd.setInputValue` sets the value and dispatches the input event the framework listens for. It is synchronous. Use it ONLY for these input types — text inputs, textareas and checkboxes go through userEvent, which fires the real keystroke and click events:
 
 ```typescript
-twd.setInputValue(await screenDom.findByLabelText("Volume"), "75");     // type="range"
-twd.setInputValue(await screenDom.findByLabelText("Start"), "13:30");   // type="time"
-twd.setInputValue(await screenDom.findByLabelText("Due"), "2026-12-01"); // type="date"
+const volume = await screenDom.findByLabelText("Volume"); // type="range"
+twd.setInputValue(volume, "75");
+const due = await screenDom.findByLabelText("Due");       // type="date"
+twd.setInputValue(due, "2026-12-01");
 ```
 
 ## Assertions
@@ -211,8 +215,9 @@ twd.setInputValue(await screenDom.findByLabelText("Due"), "2026-12-01"); // type
 **Function style (any element):**
 
 ```typescript
-twd.should(screenDom.getByRole("button"), "be.visible");
-twd.should(screenDom.getByRole("button"), "have.text", "Submit");
+const submit = await screenDom.findByRole("button", { name: "Submit" });
+twd.should(submit, "be.visible");
+twd.should(submit, "be.enabled");
 twd.should(element, "contain.text", "partial");
 twd.should(element, "have.class", "active");
 twd.should(element, "have.attr", "type", "submit");

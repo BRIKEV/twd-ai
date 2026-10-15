@@ -142,11 +142,11 @@ Everywhere else in TWD, `screenDom` is the right default because it excludes the
 
 ```ts
 // Works — render() mounted into the component host
-screen.getByText("Add Item");
-screenDomGlobal.getByRole("button", { name: "Add Item" });
+await screen.findByText("Add Item");
+await screenDomGlobal.findByRole("button", { name: "Add Item" });
 
 // Does NOT work — scoped to the app root, which is not where render() mounted
-screenDom.getByText("Add Item");
+await screenDom.findByText("Add Item");
 ```
 
 Prefer Testing Library's own `screen`. `screenDomGlobal` also works, but it can match elements inside the TWD sidebar, so keep those queries specific.
@@ -196,14 +196,16 @@ describe("Add Component", () => {
 
     render(<AppProvider><Add /></AppProvider>, { container: componentHost() });
 
-    twd.should(screen.getByText("Add Item"), "be.visible");
+    const addButton = await screen.findByText("Add Item");
+    twd.should(addButton, "be.visible");
+    await userEvent.click(addButton);
 
-    await userEvent.click(screen.getByText("Add Item"));
-    await userEvent.type(await screen.findByPlaceholderText("Enter model"), "Golf");
+    const model = await screen.findByPlaceholderText("Enter model");
+    await userEvent.type(model, "Golf");
+    twd.should(model, "have.value", "Golf");
 
-    twd.should(screen.getByPlaceholderText("Enter model"), "have.value", "Golf");
-
-    await userEvent.click(screen.getByText("Save"));
+    const save = await screen.findByText("Save");
+    await userEvent.click(save);
     await twd.waitForRequest("createCar");
   });
 });
@@ -223,7 +225,7 @@ The same approach is expected to work with `@testing-library/vue` and `@testing-
 
 ```tsx
 render(<Add />);
-screenDom.getByText("Add Item");  // fails — render() mounts outside the app root
+await screenDom.findByText("Add Item");  // fails — render() mounts outside the app root
 ```
 
 Use `screen` or `screenDomGlobal`.
