@@ -153,11 +153,12 @@ await screenDom.findByText(/welcome/i);
 // By test ID
 await screenDom.findByTestId("user-card");
 
-// Query variants
-await screenDom.findByRole("button");     // Waits for the element — every lookup
-await screenDom.findAllByRole("button");  // Waits, returns array — every list
-screenDom.queryByRole("button");          // Returns null — only to assert absence
-screenDom.getByRole("button");            // Throws at once — only inside twd.waitFor(() => ...)
+// Query variants, in priority order
+await screenDom.findByRole("button");     // 1. Waits for the element — every lookup
+await screenDom.findAllByRole("button");  //    Waits, returns array — every list
+screenDom.queryByRole("button");          // 2. Returns null — only to assert absence
+screenDom.getByRole("button");            // 3. Throws at once — only inside twd.waitFor(() => ...)
+await twd.get(".save-btn");               // 4. CSS selector — last resort
 ```
 
 `findBy*` waits up to 3000 ms in TWD, and resolves on its first check when the element is already there — use it for every lookup, not just the first in a test.
@@ -169,7 +170,7 @@ import { screenDomGlobal } from "twd-js";
 const modal = await screenDomGlobal.findByRole("dialog");
 ```
 
-**Fallback: CSS selectors via `twd.get()`**
+**Last resort: CSS selectors via `twd.get()`** — only when no Testing Library query reaches the element
 
 ```typescript
 const button = await twd.get("button");

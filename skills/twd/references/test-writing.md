@@ -21,19 +21,19 @@ import { describe, it, beforeEach, afterEach } from "twd-js/runner";
 
 ### Element Selection Priority
 
-**Query variant — `findBy*` for every lookup.** UI in a real app renders asynchronously (after navigation, fetches, state updates, a click), so every element query waits — not just the first one in a test:
+**Query variant, in this priority order.** UI in a real app renders asynchronously (after navigation, fetches, state updates, a click), so every element query waits — not just the first one in a test:
 
 1. `await screenDom.findBy*(...)` — waits for the element to appear. **Every query.** `findAllBy*` for lists. It checks the DOM straight away and resolves on that first check when the element is already there, so it costs nothing over `getBy*`
 2. `screenDom.queryBy*(...)` — returns `null`. **Only** to assert that something is absent
 3. `screenDom.getBy*(...)` — **only** inside a `twd.waitFor(() => ...)` callback, which needs a query that throws. Never as a step in the test: "it rendered already" is true until a re-render after a click or a fetch makes it false
+4. `await twd.get(selector)` / `await twd.getAll(selector)` — CSS selector, **last resort**, when no Testing Library query can reach the element
 
 **Query type — by what the user perceives:**
 
 1. `ByRole("button", { name: "Submit" })` — by ARIA role (preferred)
 2. `ByLabelText("Email")` — form inputs by label
 3. `ByText("Success!")` — by visible text
-4. `ByTestId("user-card")` — by test ID (last resort)
-5. `await twd.get("#id")` / `await twd.get(".class")` — CSS selector fallback, after every Testing Library query
+4. `ByTestId("user-card")` — by test ID (last Testing Library option; after it, only `twd.get`)
 
 For portals/modals: use `screenDomGlobal` instead of `screenDom`.
 
