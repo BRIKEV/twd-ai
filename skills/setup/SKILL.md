@@ -79,7 +79,7 @@ Read these files to pre-fill answers (read all in parallel):
     - **ESLint plugin** — the project has an ESLint flat config (`eslint.config.{js,mjs,cjs,ts,mts,cts}`) and `eslint` 9 or later in `package.json`. Lint then runs in the editor and in the project's existing `eslint` step.
     - **Command** — anything else: no ESLint, a legacy `.eslintrc*`, Biome or oxlint. The `twd-lint` command needs no ESLint and no config.
 
-14. **Existing component mocks** — grep `src/` for `<MockedComponent name=`. Each hit is a third-party component the project already swaps out in tests. Note its `name` and the component it wraps; Step 2 Batch 2 #3 pre-fills them.
+14. **Existing component mocks** — grep `src/` for `<MockedComponent name=`. Any hit means third-party code is in play: see Step 2 Batch 2 #3.
 
 ## Step 2: Ask Questions
 
@@ -119,11 +119,7 @@ After confirming batch 1, use `AskUserQuestion` for each of these that requires 
 
 1. **CSS library docs** (only if a CSS library was detected): Where are the docs? (URL, local path, or "skip")
 2. **Auth middleware**: Does your project have route-based auth/permissions? If yes, briefly describe the pattern.
-3. **Third-party code**: Does your project use external services or components that need mocking in tests? (e.g., Auth0, Stripe, analytics, a camera or map component). List the `MockedComponent` names Step 1 #14 found as already handled.
-   - If yes: which ones, and is each a **component** or a **module**?
-   - **Component** (renders UI: scanner, map, payment form) → component mocking: wrap it in `<MockedComponent name="...">` and register `twd.mockComponent(name, Fake)` in the test. No Sinon.
-   - **Module** (hook or function: `useAuth`, an analytics client) → Sinon stub.
-   - "Test what you own, mock what you don't"
+3. **Third-party code**: Does your project use external services or components that need mocking in tests? (e.g., Auth0, Stripe, analytics, a map component). If yes, or if Step 1 #14 found hits, read `references/third-party.md` — it has the follow-up question, the `twd-patterns.md` sections and the `beforeEach` lines.
 4. **Client state reset** (only if a client state library was detected in Step 1 #6): How do you reset the store? (e.g., `useStore.setState(initialState)`, `store.$reset()`)
    - TWD runs without page reloads — store state persists between tests and must be reset in beforeEach
 
@@ -208,9 +204,8 @@ beforeEach(() => {
   twd.clearComponentMocks();
   // STORE_RESET (only if a client state library detected — e.g., useStore.setState(initialState), store.$reset())
   // QUERY_CACHE_RESET (only if a server-state cache detected — see "Server-State Cache" section below)
-  // SINON_RESTORE (only if third-party modules need stubbing — Sinon.restore())
   // AUTH_SETUP (only if auth middleware detected)
-  // THIRD_PARTY_STUBS (only if third-party modules detected — e.g., Sinon.stub(authModule, 'useAuth').returns(...))
+  // THIRD_PARTY (only if third-party modules were configured — see references/third-party.md)
 });
 
 afterEach(() => {
@@ -247,26 +242,7 @@ AUTH_DESCRIPTION
 |-------|---------------------|
 | (to be filled by developer) | |
 
-## Third-Party Components
-
-"Test what you own, mock what you don't." These components are wrapped in `<MockedComponent name="...">` (from `twd-js/ui`) and replaced in tests with `twd.mockComponent(name, Fake)`, registered **before** `twd.visit()`:
-
-| Component | Package | Mock name | Where |
-|-----------|---------|-----------|-------|
-| COMPONENT | `package` | `MOCK_NAME` | `src/path/File.tsx` |
-
-The fake receives the wrapped child's props (callbacks like `onSuccess`, `onChange`). See the twd skill's `test-advanced.md`.
-
-## Third-Party Modules
-
-These external modules should be stubbed in tests:
-
-| Module | Import Pattern | Stub Strategy |
-|--------|---------------|---------------|
-| MODULE_NAME | `import { hook } from 'package'` | `Sinon.stub(moduleObj, 'hook').returns(...)` |
-| (to be filled by developer) | | |
-
-See the twd skill's `test-api.md` ("Module Stubbing with Sinon") for the default-export object pattern required for ESM stubbing.
+THIRD_PARTY_SECTIONS
 
 ## Portals and Dialogs
 
@@ -285,8 +261,7 @@ const modal = await screenDomGlobal.findByRole("dialog");
 - `LINT_SETUP` is `ESLint plugin (eslint.config.js)` or `npm run lint:twd`, whichever Step 1 item 13 found or sub-step 8 added; `npx twd-lint` if the user declined it
 - `Closing run: full suite` is always written; the user changes it to `CI` to let CI run the full suite instead
 - Omit the "Auth Middleware" section entirely if no auth
-- Omit the "Third-Party Components" section entirely if no third-party components (Step 1 #14 or Batch 2 #3)
-- Omit the "Third-Party Modules" section entirely if no external modules
+- `THIRD_PARTY_SECTIONS` comes from `references/third-party.md`; drop the placeholder if there is no third-party code
 - Omit the "CSS / Component Library" section if none detected
 - Omit the "API Service Types" section if no services folder found
 - Omit the `STORE_RESET` comment in beforeEach if no client state library detected
@@ -294,8 +269,7 @@ const modal = await screenDomGlobal.findByRole("dialog");
 - Omit the "Server-State Cache" section if no server-state cache detected
 - Substitute `QUERY_CACHE_RESET` using the reset table in `references/server-state-cache.md` (read it only when a server-state cache was detected). Replace the placeholder `// QUERY_CACHE_RESET` comment with the actual import + reset line when the user provided a path or accepted scaffolding (don't leave it as a comment in that case); keep it as a `// QUERY_CACHE_RESET — TODO ...` comment if the user chose "Skip for now"
 - Omit the `AUTH_SETUP` comment in beforeEach if no auth middleware
-- Omit the `THIRD_PARTY_STUBS` comment in beforeEach if no third-party modules
-- Omit `Sinon.restore()` in beforeEach if no third-party modules need stubbing — Sinon is ONLY needed when the user has external modules to stub
+- Omit the `THIRD_PARTY` comment in beforeEach unless a third-party module was configured
 
 ## Step 4: Install and Wire TWD
 
@@ -385,7 +359,7 @@ Using Step 1 item 11 and the entry-file and Vite-config checks, list which of th
 
    If `.gitignore` does not exist, create it with that single line. If `twd.config.json` sets `report.dir` outside `.twd/`, ignore that folder too.
 
-10. Write a **scaffold-only** first test file at `src/twd-tests/hello.twd.test.ts` (create the `src/twd-tests/` directory if needed). The file must contain **only empty `it` blocks** — this is a setup skill, NOT a test-writing skill. Do NOT invent assertions, selectors, or page content. Do NOT add Sinon unless the user explicitly configured third-party modules that need stubbing. Use the beforeEach/afterEach from the generated `twd-patterns.md`.
+10. Write a **scaffold-only** first test file at `src/twd-tests/hello.twd.test.ts` (create the `src/twd-tests/` directory if needed). The file must contain **only empty `it` blocks** — this is a setup skill, NOT a test-writing skill. Do NOT invent assertions, selectors, or page content. Use the beforeEach/afterEach from the generated `twd-patterns.md`.
 
    Example scaffold:
 
@@ -409,7 +383,7 @@ Using Step 1 item 11 and the entry-file and Vite-config checks, list which of th
    });
    ```
 
-   > **Rules for this scaffold**: Only include `Sinon.restore()` in beforeEach if third-party modules were configured. Only include client store reset if a client state library was configured. Only include the server-state cache reset (e.g. `queryClient.clear()`) if a server-state cache was configured AND the user provided a path or accepted scaffolding (sub-step 5). The `it` blocks must be empty with a comment pointing to the `/twd` skill. Import only what the scaffold uses — `userEvent`, `screenDom` and `expect` would be unused and fail `no-unused-vars`; the `/twd` skill adds them with the first real test. If the user specified a different test location, use that instead of `src/twd-tests/`.
+   > **Rules for this scaffold**: Only include `Sinon.restore()` if a third-party module was configured (`references/third-party.md`). Only include client store reset if a client state library was configured. Only include the server-state cache reset (e.g. `queryClient.clear()`) if a server-state cache was configured AND the user provided a path or accepted scaffolding (sub-step 5). The `it` blocks must be empty with a comment pointing to the `/twd` skill. Import only what the scaffold uses — `userEvent`, `screenDom` and `expect` would be unused and fail `no-unused-vars`; the `/twd` skill adds them with the first real test. If the user specified a different test location, use that instead of `src/twd-tests/`.
 
 11. **Verify the wiring.** Lint the scaffold once — `npx twd-lint src/twd-tests` (or the test folder used) exits `0`. When `TYPECHECK_COMMAND` is not `none`, run it once too. The twd agent depends on it before every first run, so a command that fails on the project's own config (e.g. TS5101, a deprecated `baseUrl` under TypeScript 6) must surface now: report the error and the fix, and do not change the tsconfig without asking. Then probe the app URL once:
 
