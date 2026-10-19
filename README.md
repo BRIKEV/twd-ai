@@ -44,6 +44,7 @@ What it does:
 - Detects your project setup (framework, Vite config, existing workflows)
 - Installs `twd-cli` if setup has not already
 - Optionally sets up code coverage with `vite-plugin-istanbul` + `nyc` (requires Vite)
+- On Vite, starts the CI dev server in production mode (`dev:ci`), which roughly halves the run. Coverage stays on there, and `vite build` stays uninstrumented
 - Generates `.github/workflows/twd-tests.yml`, which lints the TWD tests before any server starts
 - Optionally generates `.github/workflows/twd-record.yml` — label a PR `record` and get one video per test the branch added
 - Wires the environment variables and mock-API steps the app needs into **both** workflows — a recording has to start the same app the tests do
