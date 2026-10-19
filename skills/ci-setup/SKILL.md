@@ -40,6 +40,8 @@ Read these files in parallel to understand the current setup:
 9. **Glob `**/*.twd.test.{ts,tsx,js,jsx}`** (outside `node_modules`) — are there TWD tests yet (used in Steps 2.6 and 7)
 10. **Test lint** — a `lint:twd` script, or `twd-lint` imported in `eslint.config.*`, and whether a workflow from
    item 5 already runs `eslint` (used in Step 7)
+11. **How TWD loads** — the `twd()` plugin in the Vite config, or an `initTWD(` block in the entry file behind
+   `import.meta.env.DEV` (used in Step 6)
 
 ## Step 2: Report Findings and Ask About Coverage
 
@@ -249,8 +251,11 @@ istanbul({
   exclude: ["node_modules", "**/*.twd.test.{ts,tsx}", "**/twd-tests/**"],
   requireEnv: !process.env.CI,
   extension: ['.ts', '.tsx'],
+  checkProd: false, // keeps coverage on under `dev:ci`, which serves in production mode
 }),
 ```
+
+`checkProd: false` only switches off the plugin's production-mode check. The plugin still applies to `vite serve` alone, so `vite build` never instruments and a deploy build ships no coverage counters. Never use `forceBuildInstrument: true` to get the same effect: it instruments `vite build` as well.
 
 **Rules:**
 - Add the import at the top with other imports
@@ -258,7 +263,7 @@ istanbul({
 - Do NOT remove or modify existing plugins
 - Show the user the changes before applying
 
-**istanbul already configured:** do not add a second one. Check its `exclude` covers the test files — an `include` like `src/**/*` with no `**/*.twd.test.{ts,tsx}` and `**/twd-tests/**` in `exclude` instruments the tests themselves and inflates coverage. Offer to add the two globs; it is the one change to an existing plugin this step makes, and only with the user's yes.
+**istanbul already configured:** do not add a second one. Check its `exclude` covers the test files — an `include` like `src/**/*` with no `**/*.twd.test.{ts,tsx}` and `**/twd-tests/**` in `exclude` instruments the tests themselves and inflates coverage. Offer to add the two globs, and `checkProd: false` when it is missing. If the plugin sets `forceBuildInstrument: true`, offer to replace it with `checkProd: false`, because a CI build made for a deploy would otherwise ship instrumented code. These are the only changes to an existing plugin this step makes, and only with the user's yes.
 
 ## Step 6: Add package.json Scripts
 
@@ -272,11 +277,26 @@ istanbul({
 }
 ```
 
+### `dev:ci` (Vite only):
+
+CI starts the dev server in production mode, and local work stays on `npm run dev` for HMR, the sidebar and the framework's dev warnings. With `NODE_ENV=production`, Vite serves the framework's production build: for React, no StrictMode double render and no dev-only checks. On a 322-test React app this cut the run from 258s to 133s, with the same coverage. The `twd()` plugin applies to `vite serve` in any mode, so the tests and the sidebar still load.
+
+```json
+{
+  "dev:ci": "NODE_ENV=production vite"
+}
+```
+
+With coverage, make it `CI=true NODE_ENV=production vite`. If `dev` passes flags (`vite --port 3000`), copy them into `dev:ci`.
+
+In this mode `import.meta.env.DEV` is `false` on `vite serve` too:
+- **TWD loaded by an `initTWD(` block behind `import.meta.env.DEV`** (Step 1 item 11): that block never runs and no tests load. Keep `dev:ci` as `CI=true vite` with coverage, leave it out without coverage, and suggest `/twd:setup` to move to the `twd()` plugin. A `createBrowserClient(` block for twd-relay behind the same guard is fine, because CI does not use the relay.
+- **App code that branches on `import.meta.env.DEV`** takes its production branch. That is the point of the mode, but a test that relied on a dev-only branch now fails. Run `npm run dev:ci` and `npm run test:ci` once locally before writing the workflow.
+
 ### If coverage was requested, also add:
 
 ```json
 {
-  "dev:ci": "CI=true vite",
   "collect:coverage:text": "npx nyc report --reporter=text --temp-dir .nyc_output",
   "collect:coverage:html": "npx nyc report --reporter=html --temp-dir .nyc_output",
   "collect:coverage:lcov": "npx nyc report --reporter=lcov --temp-dir .nyc_output"
@@ -285,7 +305,7 @@ istanbul({
 
 **Rules:**
 - Do NOT overwrite existing scripts without asking
-- If `test:ci` exists with a value other than `npx twd-cli run`, or `dev:ci` already exists, show the conflict and ask.
+- If `test:ci` exists with a value other than `npx twd-cli run`, or `dev:ci` already exists, show the conflict and ask. An existing `dev:ci` of `CI=true vite` only needs `NODE_ENV=production` added.
 - Add scripts to the existing `"scripts"` object — do not replace it
 
 ## Step 7: Generate GitHub Actions Workflow
@@ -333,12 +353,14 @@ jobs:
 
       - name: Start dev server
         run: |
-          nohup npm run dev > /dev/null 2>&1 &
+          nohup npm run dev:ci > /dev/null 2>&1 &
           npx wait-on http://localhost:5173
 
       - name: Run TWD tests
         uses: BRIKEV/twd-cli/.github/actions/run@main
 ```
+
+Start the server with `dev:ci` when Step 6 added it, and with `dev` otherwise.
 
 The lint step comes from Step 1 item 10: `npm run lint:twd` when that script exists, otherwise `npx twd-lint`. Leave it out when `twd-lint` is an ESLint plugin in the project's config and a workflow already runs `eslint` — that step covers the TWD tests. Leave it out as well when Step 1 item 9 found no TWD tests, since `twd-lint` exits `2` on an empty folder, and say so in the summary.
 
@@ -356,7 +378,7 @@ server step grows an `env:` block, and the service starts before it:
       # on construction when they are absent.
       - name: Start dev server
         run: |
-          nohup npm run dev > /dev/null 2>&1 &
+          nohup npm run dev:ci > /dev/null 2>&1 &
           npx wait-on http://localhost:5173
         env:
           VITE_SUPABASE_URL: http://localhost:54321
@@ -366,7 +388,7 @@ server step grows an `env:` block, and the service starts before it:
 Order matters, and each step gets its own `wait-on`. An app that fetches on load
 will otherwise render its error state before the first test runs.
 
-If coverage was requested, use `dev:ci` instead of `dev`, add `CI: true` env to the dev server step, and add the coverage step after the test step:
+If coverage was requested, add `CI: true` env to the dev server step, and add the coverage step after the test step:
 
 ```yaml
       - name: Start dev server
@@ -416,7 +438,7 @@ Add its job summary and report upload steps.
 - Keep or drop the "Lint TWD tests" step, and pick its command, as described under Option A
 - Set the correct port in the `wait-on` URL
 - If base path is not `/`, append it to the `wait-on` URL
-- Use `dev:ci` for the server command if coverage is enabled, `dev` otherwise
+- Use `dev:ci` for the server command when Step 6 added it, `dev` otherwise
 
 ## Step 7.5: Generate the Recording Workflow (Recording Only)
 
@@ -429,9 +451,7 @@ given in Step 2.6.
 
 **Customize:**
 - The port in the `wait-on` URL, and the base path if it is not `/`
-- The dev script: `dev:ci` plus `CI: true` if coverage was enabled in Step 2, or
-  plain `dev` — a recording does not need coverage instrumentation. This is the
-  only step that may legitimately differ from the test workflow
+- The dev script: the same one the test workflow starts
 - Drop the `npx twd-js init public --save` step if the project's public folder
   differs, matching whatever the test workflow uses
 
@@ -481,8 +501,8 @@ When done, summarize:
 - Which environment variables were wired into the workflows, and whether they are placeholders or secrets
 - Next steps:
   - "Push to GitHub to trigger the workflow"
-  - "Run `npm run test:ci` locally to verify headless tests work"
-  - If coverage: "Run `npm run dev:ci` then `npm run test:ci` then `npm run collect:coverage:text` to see coverage locally"
+  - "Run `npm run dev:ci` then `npm run test:ci` locally to check the CI setup. Keep `npm run dev` for writing tests"
+  - If coverage: "Run `npm run collect:coverage:text` after that to see coverage locally"
   - If contracts: "Mock vs spec drift will appear as a PR comment after the next push; locally, check `.twd/report/summary.md` after `npm run test:ci`"
   - If recording: "Create a `record` label on the repo, then add it to a pull request to get one video per test the branch added"
   - If environment variables were wired in: "A new variable means editing **both** workflows — the test one and the recording one. They have to start the same app"

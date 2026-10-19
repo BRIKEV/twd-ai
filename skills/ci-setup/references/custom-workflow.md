@@ -2,7 +2,7 @@
 
 Read by `/twd:ci-setup` Step 7 only when the user picks **Custom setup** (Option B) instead of the `BRIKEV/twd-cli` action. The action does the Puppeteer cache, the Chrome install, the job summary and the report upload for you; here each is a step of its own.
 
-Pick the template, then apply the same customizations as Option A: port and base path in `wait-on`, `dev:ci` when coverage is on, and the service steps and `env:` block from Step 2.7.
+Pick the template, then apply the same customizations as Option A: port and base path in `wait-on`, `dev:ci` when Step 6 added it, and the service steps and `env:` block from Step 2.7.
 
 Use these if you need full control over each step or aren't using GitHub Actions.
 
@@ -43,7 +43,7 @@ jobs:
 
       - name: Start Vite dev server
         run: |
-          nohup npm run dev > vite.log 2>&1 &
+          nohup npm run dev:ci > vite.log 2>&1 &
           npx wait-on http://localhost:5173
 
       - name: Cache Puppeteer browsers
