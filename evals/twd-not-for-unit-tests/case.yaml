@@ -1,0 +1,40 @@
+schema_version: "1.1"
+name: twd-not-for-unit-tests
+description: A Vitest unit test for a pure function in a project that also has TWD does not invoke the twd skill
+expected_outcome: The twd skill is never invoked, and src/utils/date.test.ts is a Vitest test of daysBetween and relativeDay
+tags: [twd, trigger]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  max_turns: 15
+  timeout_seconds: 300
+  allowed_tools: [Read, Glob, Grep, Skill, TodoWrite]
+  append_system_prompt: >-
+    No user is available to answer. Where you would ask a question, take the
+    detected value or the recommended option and continue.
+  prompt: |
+    Add unit tests with Vitest for the helpers in src/utils/date.ts. Put them
+    in src/utils/date.test.ts. Don't run them, just write the file.
+graders:
+  # Never fires without the plugin either, so it is scored in both arms: the
+  # case guards against a description that makes the skill grab any testing
+  # request, and its Δ stays near zero by design.
+  - name: twd-not-invoked
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?twd"'
+    min: 0
+    max: 0
+    arm: both
+  - name: unit-test-written
+    type: file_exists
+    path: src/utils/date.test.ts
+  - name: vitest-imports
+    type: regex
+    pattern: 'from\s+["'']vitest["'']'
+    target: { source: file, path: src/utils/date.test.ts }
+  - name: no-twd-in-unit-test
+    type: regex
+    pattern: 'twd-js'
+    match: not_contains
+    target: { source: file, path: src/utils/date.test.ts }
