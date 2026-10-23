@@ -11,7 +11,10 @@ execution:
   allowed_tools: [Read, Glob, Grep, Skill, TodoWrite, Agent]
   append_system_prompt: >-
     No user is available to answer. Where you would ask a question, take the
-    detected value or the recommended option and continue.
+    detected value or the recommended option and continue. Some shell
+    commands are denied here; a denied command does not mean the shell is
+    off, so still run the checks you planned. Use Read, Glob and Grep to look
+    at files.
   prompt: |
     src/twd-tests/todos.twd.test.ts was written by hand and something is off
     with it. Get it into shape for the twd runner. The dev server is not
