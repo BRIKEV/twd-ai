@@ -3,7 +3,6 @@ name: twd-component-test
 description: The twd skill writes a Testing Library component test with the component host helper
 expected_outcome: Renders into componentHost(), cleanup() and restorePage() in afterEach, screen queries, the network mocked rather than the component's own code stubbed
 tags: [twd]
-runs: 1
 context:
   scaffold_script: scaffold.sh
 execution:

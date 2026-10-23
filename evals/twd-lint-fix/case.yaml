@@ -3,7 +3,6 @@ name: twd-lint-fix
 description: The twd skill lints an existing test with planted mistakes and fixes every report
 expected_outcome: twd-lint run on the file; runner imports from twd-js/runner, every async call awaited, no it.only, payload read from rule.request
 tags: [twd, lint]
-runs: 1
 context:
   scaffold_script: scaffold.sh
 execution:

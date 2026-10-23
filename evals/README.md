@@ -14,19 +14,38 @@ writes. They catch an edit that quietly reverts a rule the skills depend on.
 
 ## Run
 
-From the repository root:
+From the repository root. There are two modes.
+
+**Quick**, while editing a skill: one run per case, with the plugin only. About
+$1.80 and a few minutes. It shows an obvious break, not a flaky one.
 
 ```bash
-claude plugin eval . --scaffold --trust-plugin --ablation none \
+claude plugin eval . --scaffold --trust-plugin --runs 1 --ablation none \
   --allow-tools Write Edit "Bash(npx tsc *)" "Bash(npx twd-lint *)" --no-publish
 ```
 
+**Full**, before a release or when trying another model: three runs per case,
+with and without the plugin. About $10 and 25 minutes, or less with `-j 3` to run three at once.
+
+```bash
+claude plugin eval . --scaffold --trust-plugin --threshold 0.9 \
+  --allow-tools Write Edit "Bash(npx tsc *)" "Bash(npx twd-lint *)" --no-publish
+```
+
+- A case's score is the share of its graders that passed, averaged over its
+  runs. `--threshold 0.9` tolerates a grader failing once in three runs, not a
+  grader that fails every time.
+- `WITH` is the score with the plugin, `W/OUT` without it, and `Δ` the
+  difference: what the skills add over what the model already knows. A grader
+  that passes in both arms still guards against a skill edit that breaks it.
 - `--case <name>` runs one case. It takes a single name or glob, not a list.
-- Drop `--ablation none` to add a run without the plugin and see what the skills add.
-- A full run of the five cases costs about $1.80 and takes a few minutes. Run it
-  before a release, or after changing a skill these cases cover, not on every PR.
+- `--keep-temp` keeps each run's workspace and `trace.jsonl`, to see what
+  Claude read and wrote.
 - The scaffolds write their projects from heredocs and install nothing, so a run
   needs no network, apart from `npx twd-lint` fetching the linter.
+
+A new case also gets a row in the Tested Scenarios table of the root
+`README.md`.
 
 Eval runs refuse writes into `.claude/`, so `setup-vite-react-query` grades
 the `twd-patterns.md` write the skill attempted, from the trace, rather than the
