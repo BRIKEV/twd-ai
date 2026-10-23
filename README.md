@@ -179,6 +179,7 @@ The skills are checked with [plugin evals](https://code.claude.com/docs/en/plugi
 | App with a mock API and a required env var | `/twd:ci-setup` | Test workflow on the `twd-cli` action, a separate label-triggered recording workflow, both starting the same app |
 | Page flow tests | `twd` | Runner imports, mocks before visit, every async call awaited, payload asserted on the request, type-checked and linted |
 | Component test with Testing Library | `twd` | Rendered into an isolated host, cleaned up between tests, network mocked rather than project code stubbed |
+| A page around a third-party component (camera scanner) | `twd` | The component replaced with `twd.mockComponent()`, its callbacks driven by the fake, the page's own code untouched |
 | Fixing a hand-written test | `twd` | twd-lint run and every report fixed |
 | A unit-test request in a project with TWD | `twd` | The skill stays out of it: unit tests are left to the project's own runner |
 
