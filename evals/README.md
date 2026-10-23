@@ -30,8 +30,18 @@ with and without the plugin. About $10 and 25 minutes, or less with `-j 3` to ru
 
 ```bash
 claude plugin eval . --scaffold --trust-plugin --threshold 0.9 \
+  --model claude-opus-5-5 --judge-model claude-sonnet-5-5 \
   --allow-tools Write Edit "Bash(npx tsc *)" "Bash(npx twd-lint *)" --no-publish
 ```
+
+Two models take part: `--model` is the agent using the skills, `--judge-model`
+votes on the `llm` graders. Pin both, and change one thing per comparison:
+
+- **A skill edit**: same agent and judge before and after, so a drop is the edit.
+- **Another model**: change `--model` only and keep the judge, so a drop is the
+  model. Compare `WITH` per case against the last full run on the pinned model.
+  A grader that passed there and fails now is a rule the skill states too
+  weakly for that model.
 
 - A case's score is the share of its graders that passed, averaged over its
   runs. `--threshold 0.9` tolerates a grader failing once in three runs, not a
