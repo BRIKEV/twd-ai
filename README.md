@@ -169,14 +169,19 @@ Add column header assertions with have.text.
 
 Works best alongside `/twd:test-gaps` — gaps tells you **what's untested**, quality tells you **if existing tests are any good**.
 
-## Supported Frameworks
+## Tested Scenarios
 
-- React
-- Vue
-- Angular
-- Solid.js
+The skills are checked with [plugin evals](https://code.claude.com/docs/en/plugin-evals): each scenario scaffolds a small project, runs the skill without a human in the loop, and grades the files it writes. A scenario listed here is one a skill change cannot quietly break.
 
-Requires Vite as the build tool. Not compatible with SSR-first architectures (Next.js App Router).
+| Scenario | Skill | Verified |
+|---|---|---|
+| Vite + React app with TanStack Query and ESLint | `/twd:setup` | `twd()` Vite plugin, `twd.config.json`, `test:ci`, twd-lint in the ESLint config, query cache reset in `twd-patterns.md` |
+| App with a mock API and a required env var | `/twd:ci-setup` | Test workflow on the `twd-cli` action, a separate label-triggered recording workflow, both starting the same app |
+| Page flow tests | `twd` | Runner imports, mocks before visit, every async call awaited, payload asserted on the request, type-checked and linted |
+| Component test with Testing Library | `twd` | Rendered into an isolated host, cleaned up between tests, network mocked rather than project code stubbed |
+| Fixing a hand-written test | `twd` | twd-lint run and every report fixed |
+
+Scenarios outside this table may still work; they are not guarded yet. See [`evals/README.md`](evals/README.md) for the exact checks and how to run them.
 
 ## Packages Used
 
