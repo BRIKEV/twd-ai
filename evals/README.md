@@ -10,6 +10,7 @@ writes. They catch an edit that quietly reverts a rule the skills depend on.
 | `twd-lint-fix` | `twd` | A hand-written test with Vitest imports, missing `await`s, `it.only` and `rule.request.body`: the skill runs twd-lint and the file ends clean |
 | `twd-component-test` | `twd` | `componentHost()` helper that detaches the app root, `cleanup()` + `restorePage()` in `afterEach`, `screen` not `screenDom`, no blank-route visit, network mocked rather than project code stubbed |
 | `twd-mock-component` | `twd` | A page around a camera scanner wrapped in `MockedComponent`: `twd.mockComponent()` before visit, the fake calls `onScan` with the scanner's payload, component mocks cleared in `beforeEach`, no Sinon or module mocks, the page left untouched |
+| `twd-run-loop` | `twd` | A suite with one test mocking the wrong URL, run through a stand-in `twd-cli` the scaffold writes (no browser; it honours `--test` and writes `run.json`): a filtered run before the unfiltered closing run, `run.json` read, the mock fixed in the test and the app left alone |
 | `twd-not-for-unit-tests` | `twd` | A Vitest unit test for a pure function, in a project that also has TWD: the skill is never invoked and the file is plain Vitest. Δ stays near zero by design; the case guards the skill's `description` |
 | `setup-vite-react-query` | `setup` | The common case: `twd()` Vite plugin with a `.tsx` test pattern and no entry-file code, `twd.config.json`, `test:ci`, `.twd/` ignored, twd-lint added to the ESLint config, and `twd-patterns.md` with the type-check command and `queryClient.clear()` |
 | `ci-setup-recording` | `ci-setup` | Test workflow on the `run` action, a separate label-triggered recording workflow pinned to `v1.10.0` with full history, and both starting the mock API with the same env var as a commented placeholder |
@@ -23,7 +24,8 @@ $1.80 and a few minutes. It shows an obvious break, not a flaky one.
 
 ```bash
 claude plugin eval . --scaffold --trust-plugin --runs 1 --ablation none \
-  --allow-tools Write Edit "Bash(npx tsc *)" "Bash(npx twd-lint *)" --no-publish
+  --allow-tools Write Edit "Bash(npx tsc *)" "Bash(npx twd-lint *)" "Bash(npx twd-cli *)" \
+  "Bash(./node_modules/.bin/twd-cli *)" "Bash(node node_modules/twd-cli/bin.js *)" --no-publish
 ```
 
 **Full**, before a release or when trying another model: three runs per case,
@@ -32,7 +34,8 @@ with and without the plugin. About $10 and 25 minutes, or less with `-j 3` to ru
 ```bash
 claude plugin eval . --scaffold --trust-plugin --threshold 0.9 \
   --model claude-opus-5-5 --judge-model claude-sonnet-5-5 \
-  --allow-tools Write Edit "Bash(npx tsc *)" "Bash(npx twd-lint *)" --no-publish
+  --allow-tools Write Edit "Bash(npx tsc *)" "Bash(npx twd-lint *)" "Bash(npx twd-cli *)" \
+  "Bash(./node_modules/.bin/twd-cli *)" "Bash(node node_modules/twd-cli/bin.js *)" --no-publish
 ```
 
 Two models take part: `--model` is the agent using the skills, `--judge-model`
@@ -54,7 +57,13 @@ votes on the `llm` graders. Pin both, and change one thing per comparison:
 - `--keep-temp` keeps each run's workspace and `trace.jsonl`, to see what
   Claude read and wrote.
 - The scaffolds write their projects from heredocs and install nothing, so a run
-  needs no network, apart from `npx twd-lint` fetching the linter.
+  needs no network, apart from `npx twd-lint` fetching the linter. The one
+  `node_modules` entry is the `twd-cli` stand-in in `twd-run-loop`.
+- With Node from nvm (or any install under your home), `npx` fails inside the
+  eval sandbox with `Cannot find module …/bin/npx`. The type check and twd-lint
+  then never run, which is why those graders check the attempt and not the
+  result. `twd-run-loop` needs its runs to happen, so the two grants after
+  `npx twd-cli` let the agent call the stand-in directly when `npx` fails.
 
 A new case also gets a row in the Tested Scenarios table of the root
 `README.md`.
