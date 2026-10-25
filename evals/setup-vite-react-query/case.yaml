@@ -3,7 +3,6 @@ name: setup-vite-react-query
 description: /twd:setup on the common case, a Vite + React app with TanStack Query and ESLint
 expected_outcome: The twd() Vite plugin with a .tsx test pattern and no entry-file code, twd.config.json, test:ci, .twd/ ignored, twd-lint as an ESLint plugin, and twd-patterns.md with the type-check command and the query cache reset
 tags: [setup]
-runs: 1
 context:
   scaffold_script: scaffold.sh
 execution:

@@ -3,7 +3,6 @@ name: twd-flow-test
 description: The twd skill writes a flow test that follows the current API rules
 expected_outcome: One file, mocks before visit, findBy queries, Chai asserts, responseHeaders never headers, type-checked and linted
 tags: [twd]
-runs: 1
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -12,7 +11,10 @@ execution:
   allowed_tools: [Read, Glob, Grep, Skill, TodoWrite, Agent]
   append_system_prompt: >-
     No user is available to answer. Where you would ask a question, take the
-    detected value or the recommended option and continue.
+    detected value or the recommended option and continue. Some shell
+    commands are denied here; a denied command does not mean the shell is
+    off, so still run the checks you planned. Use Read, Glob and Grep to look
+    at files.
   prompt: |
     Write TWD tests for the todo page: loading the list, the empty state, a
     failed load, and adding a todo. Put them in src/twd-tests/todos.twd.test.ts.

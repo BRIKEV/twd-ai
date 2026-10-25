@@ -3,7 +3,6 @@ name: ci-setup-recording
 description: /twd:ci-setup writes the test and recording workflows with the same runtime environment
 expected_outcome: twd-tests.yml on the run action, a separate label-triggered twd-record.yml pinned to v1.10.0, and both starting the mock API and passing VITE_API_URL
 tags: [ci-setup]
-runs: 1
 context:
   scaffold_script: scaffold.sh
 execution:

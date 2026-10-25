@@ -1,0 +1,71 @@
+schema_version: "1.1"
+name: twd-mock-component
+description: The twd skill tests a page around a camera scanner by replacing the scanner with twd.mockComponent
+expected_outcome: twd.mockComponent("qrScanner") registered before visit, the fake calls onScan with the scanner's real payload shape, component mocks cleared in beforeEach, no Sinon or module mocks
+tags: [twd]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  max_turns: 40
+  timeout_seconds: 900
+  allowed_tools: [Read, Glob, Grep, Skill, TodoWrite, Agent]
+  append_system_prompt: >-
+    No user is available to answer. Where you would ask a question, take the
+    detected value or the recommended option and continue. Some shell
+    commands are denied here; a denied command does not mean the shell is
+    off, so still run the checks you planned. Use Read, Glob and Grep to look
+    at files.
+  prompt: |
+    Write TWD tests for the QR scanner page: a scanned code shows up in the
+    list, scanning the same code twice keeps a single entry, and Clear all
+    empties the list. There is no camera in the test browser. Put them in
+    src/twd-tests/qr-scanner.twd.test.tsx. The dev server is not running, so
+    stop after writing, type-checking and linting the tests; do not try to
+    run them.
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?twd"'
+  - name: test-file-written
+    type: file_exists
+    path: src/twd-tests/qr-scanner.twd.test.tsx
+  - name: scanner-mocked-by-name
+    type: regex
+    pattern: 'twd\.mockComponent\(\s*["'']qrScanner["'']'
+    target: { source: file, path: src/twd-tests/qr-scanner.twd.test.tsx }
+  # MockedComponent hands the fake the child's props, so the fake drives the
+  # page through onScan with the scanner's own payload: an array of rawValue.
+  - name: fake-calls-onscan-with-payload
+    type: regex
+    pattern: 'onScan\(\s*\[\s*\{\s*rawValue'
+    target: { source: file, path: src/twd-tests/qr-scanner.twd.test.tsx }
+  - name: component-mocks-cleared
+    type: regex
+    # [^}] keeps the match inside the beforeEach body; [\s\S]*? would run on
+    # into an afterEach and pass a clear made there.
+    pattern: 'beforeEach\([^{]*\{[^}]*twd\.clearComponentMocks\(\)'
+    target: { source: file, path: src/twd-tests/qr-scanner.twd.test.tsx }
+  - name: no-module-stubs
+    type: regex
+    pattern: 'sinon|vi\.mock|jest\.mock'
+    match: not_contains
+    target: { source: file, path: src/twd-tests/qr-scanner.twd.test.tsx }
+  - name: page-untouched
+    type: tool_used
+    tool: Edit
+    input_match: 'QrScannerPage'
+    min: 0
+    max: 0
+  - name: mock-before-visit
+    type: llm
+    focus: { source: file, path: src/twd-tests/qr-scanner.twd.test.tsx }
+    criteria: |
+      PASS if twd.mockComponent is registered before twd.visit, whether in
+      each test or in a beforeEach that runs before the visit, the
+      scan reaches the page through the fake calling onScan (from a control
+      the test clicks, or on mount), and the tests cover a scanned code
+      appearing, a duplicate scan keeping one entry, and Clear all emptying
+      the list.
+      FAIL if any mockComponent call comes after visit, the scan reaches the
+      page some other way, or one of the three behaviours is missing.
