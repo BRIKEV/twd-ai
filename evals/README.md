@@ -90,6 +90,26 @@ cell is WITH / Δ.
 | `twd-mock-component` | 1.00 / 0.00 | 1.00 / +0.29 | 0.90 / +0.48 |
 | `twd-not-for-unit-tests` | 1.00 / 0.00 | 1.00 / 0.00 | 1.00 / 0.00 |
 
+Cost and turns per run, with / without the plugin (judge cost excluded):
+
+| Case | Opus 5.5 | Sonnet 5.5 | Haiku 5.5 |
+|---|---|---|---|
+| `setup-vite-react-query` | $0.36 / $0.18 · 21 / 7 | $0.17 / $0.09 · 22 / 9 | $0.01 / $0.00 · 23 / 4 |
+| `ci-setup-recording` | $0.34 / $0.25 · 8 / 13 | $0.20 / $0.08 · 13 / 6 | $0.03 / $0.01 · 21 / 10 |
+| `twd-component-test` | $0.44 / $0.27 · 18 / 9 | $0.16 / $0.12 · 11 / 12 | $0.02 / $0.02 · 17 / 12 |
+| `twd-run-loop` | $0.36 / $0.22 · 22 / 14 | $0.11 / $0.07 · 12 / 9 | $0.01 / $0.01 · 15 / 18 |
+| `twd-lint-fix` | $0.27 / $0.16 · 14 / 6 | $0.10 / $0.09 · 7 / 12 | $0.01 / $0.01 · 10 / 13 |
+| `twd-flow-test` | $0.30 / $0.23 · 11 / 11 | $0.14 / $0.11 · 12 / 11 | $0.02 / $0.02 · 16 / 14 |
+| `twd-mock-component` | $0.38 / $0.24 · 15 / 10 | $0.16 / $0.11 · 14 / 12 | $0.03 / $0.02 · 21 / 13 |
+| `twd-not-for-unit-tests` | $0.15 / $0.14 · 5 / 6 | $0.06 / $0.06 · 3 / 3 | $0.00 / $0.00 · 6 / 6 |
+
+Extra cost only matters where the score is the same in both arms: there the
+skill is cost without gain for that model (`twd-mock-component` on Opus,
++57%). Where the score without the plugin is low, the extra cost is what doing
+it right costs. Each run's `costUsd` and `turns` are in
+`evals/results/<run>/aggregate-result.json`, under `cases[].arms.with` and
+`cases[].arms.without`.
+
 What the misses were, from the traces:
 
 - `twd-run-loop`, Sonnet: twice it gave up when `npx` failed, after trying the
