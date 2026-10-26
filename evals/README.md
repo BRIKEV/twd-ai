@@ -23,19 +23,17 @@ From the repository root. There are two modes.
 $1.80 and a few minutes. It shows an obvious break, not a flaky one.
 
 ```bash
-claude plugin eval . --scaffold --trust-plugin --runs 1 --ablation none \
-  --allow-tools Write Edit "Bash(npx tsc *)" "Bash(npx twd-lint *)" "Bash(npx twd-cli *)" \
-  "Bash(./node_modules/.bin/*)" "Bash(node node_modules/twd-cli/bin.js *)" --no-publish
+PATH="/usr/local/bin:$PATH" claude plugin eval . --scaffold --trust-plugin --runs 1 --ablation none \
+  --allow-tools Write Edit "Bash(npx tsc *)" "Bash(npx twd-lint *)" "Bash(npx twd-cli *)" --no-publish
 ```
 
 **Full**, before a release or when trying another model: three runs per case,
 with and without the plugin. About $10 and 25 minutes, or less with `-j 3` to run three at once.
 
 ```bash
-claude plugin eval . --scaffold --trust-plugin --threshold 0.9 \
+PATH="/usr/local/bin:$PATH" claude plugin eval . --scaffold --trust-plugin --threshold 0.9 \
   --model claude-opus-5-5 --judge-model claude-sonnet-5-5 \
-  --allow-tools Write Edit "Bash(npx tsc *)" "Bash(npx twd-lint *)" "Bash(npx twd-cli *)" \
-  "Bash(./node_modules/.bin/*)" "Bash(node node_modules/twd-cli/bin.js *)" --no-publish
+  --allow-tools Write Edit "Bash(npx tsc *)" "Bash(npx twd-lint *)" "Bash(npx twd-cli *)" --no-publish
 ```
 
 Two models take part: `--model` is the agent using the skills, `--judge-model`
@@ -56,17 +54,15 @@ votes on the `llm` graders. Pin both, and change one thing per comparison:
 - `--case <name>` runs one case. It takes a single name or glob, not a list.
 - `--keep-temp` keeps each run's workspace and `trace.jsonl`, to see what
   Claude read and wrote.
-- The scaffolds write their projects from heredocs and install nothing, so a run
-  needs no network, apart from `npx twd-lint` fetching the linter. The one
-  `node_modules` entry is the `twd-cli` stand-in in `twd-run-loop`.
-- With Node from nvm (or any install under your home), `npx` fails inside the
-  eval sandbox with `Cannot find module …/bin/npx`. The type check and twd-lint
-  then never run, which is why those graders check the attempt and not the
-  result. `twd-run-loop` needs its runs to happen, so the two grants after
-  `npx twd-cli` let the agent call the stand-in directly when `npx` fails.
-  The first covers every local binary: granting only `twd-cli` there, an agent
-  whose `./node_modules/.bin/twd-lint` was denied concluded nothing could run
-  and stopped before running the tests.
+- Run the evals with a Node installed outside your home directory, such as
+  the official installer at `/usr/local/bin` or `apt` on Linux, and put it
+  first in `PATH` as the commands do. The sandbox cannot read your home, so
+  with Node from nvm `npx` fails with `Cannot find module …/bin/npx`.
+- The scaffolds write their projects from heredocs and install nothing. The
+  sandbox has no network either, so `npx twd-lint` and `npx tsc` cannot fetch
+  their package: those graders check that the skill made the call, as a test
+  of code calling an external service checks the call. The one `node_modules`
+  entry is the `twd-cli` stand-in in `twd-run-loop`, which `npx` finds locally.
 
 A new case also gets a row in the Tested Scenarios table of the root
 `README.md`.
@@ -79,7 +75,9 @@ file on disk.
 
 The last full runs, to compare a skill edit or another model against: judge
 `claude-sonnet-5-5`, three runs per arm, plugin 1.3.7, 2026-10-25, Node from
-nvm (so `npx` failed in every run, see above). Each cell is WITH / Δ.
+nvm. `npx` failed in every run, so `twd-run-loop` ran with two extra grants
+for calling the stand-in directly; the next full run replaces this table. Each
+cell is WITH / Δ.
 
 | Case | Opus 5.5 | Sonnet 5.5 | Haiku 5.5 |
 |---|---|---|---|
