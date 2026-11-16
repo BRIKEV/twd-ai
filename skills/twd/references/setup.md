@@ -19,7 +19,7 @@ npx twd-js init public --save
 ```
 
 Copies `mock-sw.js` into `public/`. Use the project's public folder if it has
-another name.
+another name. Commit the file; do not add it to `.gitignore`.
 
 ## Step 3: Wire TWD into the app
 
@@ -29,7 +29,7 @@ No entry-file code. Add the plugin:
 
 ```typescript
 // vite.config.ts
-import { twd } from 'twd-js/vite-plugin';
+import { twd, removeMockServiceWorker } from 'twd-js/vite-plugin';
 
 export default defineConfig({
   plugins: [
@@ -39,13 +39,15 @@ export default defineConfig({
       open: true,
       position: 'left',
     }),
+    removeMockServiceWorker(), // build only: strips mock-sw.js from the build output
   ],
 });
 ```
 
 `twd()` discovers test files, mounts the sidebar through an injected
 `<script>`, registers the mock service worker, and respects Vite `base`. It only
-runs in `vite dev`, so production builds are untouched. If a previous setup left
+runs in `vite dev`. Vite still copies `public/mock-sw.js` into the build, so
+`removeMockServiceWorker()` removes it there. If a previous setup left
 an `initTWD(...)` block in the entry file, offer to delete it — the plugin
 replaces it. Leave any `twdRemote()` or `createBrowserClient(` wiring
 untouched; it belongs to twd-relay.

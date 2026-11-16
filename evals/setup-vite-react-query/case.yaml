@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: setup-vite-react-query
 description: /twd:setup on the common case, a Vite + React app with TanStack Query and ESLint
-expected_outcome: The twd() Vite plugin with a .tsx test pattern and no entry-file code, twd.config.json, test:ci, .twd/ ignored, twd-lint as an ESLint plugin, and twd-patterns.md with the type-check command and the query cache reset
+expected_outcome: The twd() Vite plugin with a .tsx test pattern and no entry-file code, removeMockServiceWorker() next to it with mock-sw.js left out of .gitignore, twd.config.json, test:ci, .twd/ ignored, twd-lint as an ESLint plugin, and twd-patterns.md with the type-check command and the query cache reset
 tags: [setup]
 context:
   scaffold_script: scaffold.sh
@@ -26,6 +26,22 @@ graders:
     type: regex
     pattern: 'twd\(\s*\{[\s\S]*testFilePattern:\s*["'']/\*\*/\*\.twd\.test\.\{ts,tsx\}["'']'
     target: { source: file, path: vite.config.ts }
+  # The worker is committed and stripped from the build, not gitignored.
+  - name: remove-mock-sw-imported
+    type: regex
+    pattern: 'import\s*\{[^}]*\bremoveMockServiceWorker\b[^}]*\}\s*from\s*["'']twd-js/vite-plugin["'']'
+    target: { source: file, path: vite.config.ts }
+  # Anchored to a line start, "[" or "," so a commented-out call does not pass.
+  - name: remove-mock-sw-in-plugins
+    type: regex
+    pattern: '(?:^|[\[,])\s*removeMockServiceWorker\('
+    flags: m
+    target: { source: file, path: vite.config.ts }
+  - name: mock-sw-not-ignored
+    type: regex
+    pattern: 'mock-sw'
+    match: not_contains
+    target: { source: file, path: .gitignore }
   - name: no-entry-file-code
     type: regex
     pattern: 'initTWD|twd-js'

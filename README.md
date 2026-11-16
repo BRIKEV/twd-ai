@@ -71,7 +71,7 @@ The skills are checked with [plugin evals](https://code.claude.com/docs/en/plugi
 
 | Scenario | Skill | Verified |
 |---|---|---|
-| Vite + React app with TanStack Query and ESLint | `/twd:setup` | `twd()` Vite plugin, `twd.config.json`, `test:ci`, twd-lint in the ESLint config, query cache reset in `twd-patterns.md` |
+| Vite + React app with TanStack Query and ESLint | `/twd:setup` | `twd()` Vite plugin, `removeMockServiceWorker()` with `mock-sw.js` committed, `twd.config.json`, `test:ci`, twd-lint in the ESLint config, query cache reset in `twd-patterns.md` |
 | App with a mock API and a required env var | `/twd:ci-setup` | Test workflow on the `twd-cli` action, a separate label-triggered recording workflow, both starting the same app |
 | Page flow tests | `twd` | Runner imports, mocks before visit, every async call awaited, payload asserted on the request, type-checked and linted |
 | Component test with Testing Library | `twd` | Rendered into an isolated host, cleaned up between tests, network mocked rather than project code stubbed |

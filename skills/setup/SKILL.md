@@ -279,6 +279,8 @@ Using Step 1 item 11 and the entry-file and Vite-config checks, list which of th
 
    Both are dev-only: `twd-js` is loaded behind a dev guard the bundler folds at build time and `twd-cli` is the test runner. They must NOT land in `dependencies`.
 2. `npx twd-js init PUBLIC_DIR --save`
+
+   Commit `PUBLIC_DIR/mock-sw.js`; do not add it to `.gitignore`. Sub-step 4 strips it from the production build.
 3. Configure the entry point. **Before modifying the entry file, search it for an existing `initTWD(` call.** If found, the project has manual boilerplate from an earlier setup. On the Vite path ask via `AskUserQuestion`:
 
    > Existing manual `initTWD` block found in your entry file. Remove it and rely on the `twd()` Vite plugin?
@@ -296,7 +298,7 @@ Using Step 1 item 11 and the entry-file and Vite-config checks, list which of th
 4. Add the Vite plugin — **Vite projects only.** Skip for non-Vite projects.
 
    ```typescript
-   import { twd } from 'twd-js/vite-plugin';
+   import { twd, removeMockServiceWorker } from 'twd-js/vite-plugin';
 
    // Add to plugins array (preserve existing plugin order; insert at the end):
    plugins: [
@@ -308,10 +310,13 @@ Using Step 1 item 11 and the entry-file and Vite-config checks, list which of th
        // serviceWorker / serviceWorkerUrl defaults work; pass user overrides here.
        // Other options the user wants (search, theme, rootSelector) go here too.
      }),
+     removeMockServiceWorker(), // build only: strips mock-sw.js from the build output
    ]
    ```
 
-   `twd()` auto-discovers test files (`import.meta.glob`-based), injects the sidebar `<script>` into `index.html`, and respects Vite `base` for both the script src and the default `serviceWorkerUrl`. It only runs in `vite dev` (`apply: 'serve'`); production builds are unaffected. Full reload on test-file edits is built in.
+   `twd()` auto-discovers test files (`import.meta.glob`-based), injects the sidebar `<script>` into `index.html`, and respects Vite `base` for both the script src and the default `serviceWorkerUrl`. It only runs in `vite dev` (`apply: 'serve'`). Full reload on test-file edits is built in.
+
+   Vite still copies `public/mock-sw.js` into the build, so `removeMockServiceWorker()` removes it from the build output (it only runs in `vite build`). With a custom `serviceWorkerUrl`, pass the same path: `removeMockServiceWorker({ fileName: 'workers/mock-sw.js' })`.
 
    #### `testFilePattern` defaults by framework
 
@@ -405,6 +410,7 @@ When done, summarize:
 - What values were detected vs asked
 - **Which integration path was used** — Vite plugin (`twd()` in `vite.config.*`, no TWD code in the entry file) or manual (`initTWD(...)` block in the entry file). For Vite projects with a non-root `base`, mention that the plugin auto-prefixes the script src and `serviceWorkerUrl`.
 - **Server-state cache handling** (if applicable) — which library, the import path used in `QUERY_CACHE_RESET`, and whether the singleton was scaffolded or already existed
+- **Mock service worker** — `PUBLIC_DIR/mock-sw.js` is committed and stripped from builds by `removeMockServiceWorker()`. To gitignore it instead, every clone and CI job must run `npx twd-js init PUBLIC_DIR` first
 - **Runner** — twd-cli installed, `twd.config.json` written or merged (show its contents), `test:ci` added or kept, `.twd/` added to `.gitignore` or already there
 - **Test lint** — the ESLint plugin added to which config, or the `lint:twd` script, or declined
 - What setup steps were completed

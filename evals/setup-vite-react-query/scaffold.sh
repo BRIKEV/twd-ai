@@ -19,6 +19,8 @@ cat > package.json <<'EOF'
   }
 }
 EOF
+# As the Vite template ships it, so the .gitignore graders read a file in both arms.
+printf 'node_modules\ndist\n*.local\n' > .gitignore
 cat > eslint.config.js <<'EOF'
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
