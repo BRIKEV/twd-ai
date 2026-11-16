@@ -12,7 +12,7 @@ writes. They catch an edit that quietly reverts a rule the skills depend on.
 | `twd-mock-component` | `twd` | A page around a camera scanner wrapped in `MockedComponent`: `twd.mockComponent()` before visit, the fake calls `onScan` with the scanner's payload, component mocks cleared in `beforeEach`, no Sinon or module mocks, the page left untouched |
 | `twd-run-loop` | `twd` | A suite with one test mocking the wrong URL, run through a stand-in `twd-cli` the scaffold writes (no browser; it honours `--test` and writes `run.json`): a filtered run before the unfiltered closing run, `run.json` read, the mock fixed in the test and the app left alone |
 | `twd-not-for-unit-tests` | `twd` | A Vitest unit test for a pure function, in a project that also has TWD: the skill is never invoked and the file is plain Vitest. Δ stays near zero by design; the case guards the skill's `description` |
-| `setup-vite-react-query` | `setup` | The common case: `twd()` Vite plugin with a `.tsx` test pattern and no entry-file code, `twd.config.json`, `test:ci`, `.twd/` ignored, twd-lint added to the ESLint config, and `twd-patterns.md` with the type-check command and `queryClient.clear()` |
+| `setup-vite-react-query` | `setup` | The common case: `twd()` Vite plugin with a `.tsx` test pattern and no entry-file code, `removeMockServiceWorker()` next to it and `mock-sw.js` not gitignored, `twd.config.json`, `test:ci`, `.twd/` ignored, twd-lint added to the ESLint config, and `twd-patterns.md` with the type-check command and `queryClient.clear()` |
 | `ci-setup-recording` | `ci-setup` | Test workflow on the `run` action, a separate label-triggered recording workflow pinned to `v1.10.0` with full history, and both starting the mock API with the same env var as a commented placeholder |
 
 ## Run
@@ -76,12 +76,14 @@ file on disk.
 The last full runs, to compare a skill edit or another model against: judge
 `claude-sonnet-5-5`, three runs per arm, plugin 1.3.7, 2026-10-25, Node from
 nvm. `npx` failed in every run, so `twd-run-loop` ran with two extra grants
-for calling the stand-in directly; the next full run replaces this table. Each
+for calling the stand-in directly; the next full run replaces this table. The
+`setup-vite-react-query` row is newer: plugin 1.4.1, 2026-11-16, Node from
+`/usr/local/bin`, after the case gained the mock service worker graders. Each
 cell is WITH / Δ.
 
 | Case | Opus 5.5 | Sonnet 5.5 | Haiku 5.5 |
 |---|---|---|---|
-| `setup-vite-react-query` | 1.00 / +0.90 | 1.00 / +0.90 | 1.00 / +0.90 |
+| `setup-vite-react-query` | 1.00 / +0.85 | 1.00 / +0.85 | 1.00 / +0.85 |
 | `ci-setup-recording` | 1.00 / +0.70 | 1.00 / +1.00 | 0.97 / +0.80 |
 | `twd-component-test` | 1.00 / +0.50 | 1.00 / +0.54 | 1.00 / +0.63 |
 | `twd-run-loop` | 1.00 / +0.40 | 0.60 / 0.00 | 0.53 / -0.07 |
@@ -94,7 +96,7 @@ Cost and turns per run, with / without the plugin (judge cost excluded):
 
 | Case | Opus 5.5 | Sonnet 5.5 | Haiku 5.5 |
 |---|---|---|---|
-| `setup-vite-react-query` | $0.36 / $0.18 · 21 / 7 | $0.17 / $0.09 · 22 / 9 | $0.01 / $0.00 · 23 / 4 |
+| `setup-vite-react-query` | $0.37 / $0.21 · 22 / 8 | $0.18 / $0.10 · 23 / 10 | $0.01 / $0.00 · 23 / 7 |
 | `ci-setup-recording` | $0.34 / $0.25 · 8 / 13 | $0.20 / $0.08 · 13 / 6 | $0.03 / $0.01 · 21 / 10 |
 | `twd-component-test` | $0.44 / $0.27 · 18 / 9 | $0.16 / $0.12 · 11 / 12 | $0.02 / $0.02 · 17 / 12 |
 | `twd-run-loop` | $0.36 / $0.22 · 22 / 14 | $0.11 / $0.07 · 12 / 9 | $0.01 / $0.01 · 15 / 18 |
